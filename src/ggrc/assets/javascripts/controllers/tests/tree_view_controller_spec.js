@@ -151,7 +151,7 @@ describe('CMS.Controllers.TreeView', function () {
         })
       };
 
-      method = Ctrl.prototype.find.bind(ctrlInst);
+      method = Ctrl.prototype.refresh_page.bind(ctrlInst);
     });
 
     it('refresh_page()', function () {

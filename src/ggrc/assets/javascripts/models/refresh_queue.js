@@ -132,7 +132,7 @@ can.Construct("RefreshQueueManager", {
            Temporary solutions for apply pagination on Assessments view.
            We do not use batch loading for Assessment list.
            */
-          if (instance && instance.type !== 'Audit' &&
+          if (instance && instance.type !== 'Audit' && queue.model &&
             queue.model.shortName !== 'Assessment') {
             isEnqueue = isEnqueue && queue.ids.length < 150;
           }
