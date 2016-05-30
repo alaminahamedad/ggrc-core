@@ -1432,7 +1432,7 @@ CMS.Controllers.TreeLoader('CMS.Controllers.TreeView', {
     } else {
       return;
     }
-    this.find();
+    this.refresh_page();
   },
 
   change_page: function (event) {
@@ -1455,7 +1455,7 @@ CMS.Controllers.TreeLoader('CMS.Controllers.TreeView', {
     var size = $el.data('size');
     this.options.paging.attr("page_size", size);
     this.options.paging.attr("current", 1);
-    this.find();
+    this.refresh_page();
   },
 
   set_current_page: function (event) {
@@ -1466,7 +1466,7 @@ CMS.Controllers.TreeLoader('CMS.Controllers.TreeView', {
     $el.val('');
   },
 
-  find: function () {
+  refresh_page: function () {
     var self = this;
 
     this.options.model.findAll(self._build_request_params())
@@ -1527,7 +1527,8 @@ CMS.Controllers.TreeLoader('CMS.Controllers.TreeView', {
     // Temporary solutions for apply pagination on Assessments view
     if (instance.type === 'Audit' &&
       this.options.model.shortName === 'Assessment') {
-      this.find();
+      this.options.paging.attr("current", 1);
+      this.refresh_page();
     } else {
       this.reload_list();
     }

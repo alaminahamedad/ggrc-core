@@ -47,7 +47,7 @@ can.Control("GGRC.Controllers.TreeFilter", {
       .find(".cms_controllers_tree_view").control();
 
     parent.options.paging.attr('filter', filter);
-    parent.find();
+    parent.refresh_page();
   },
   "input[type=reset] click": function (el, ev) {
     this.element.find("input[type=text]")[0].value = "";
