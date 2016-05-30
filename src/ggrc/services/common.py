@@ -746,14 +746,12 @@ class Resource(ModelView):
             if self.pk in kwargs and kwargs[self.pk] is not None:
               if self.rel_name in kwargs and kwargs[self.rel_name] is not None:
                 with benchmark("Query for object"):
-                  obj = self.get_object(
-                    kwargs[self.pk],
-                    ImmutableMultiDict([('__stubs_only', '')]))
+                  obj = self.get_object(kwargs[self.pk])
                 if obj is None:
                   return self.not_found_response()
 
                 with benchmark("Query read permissions"):
-                  self.check_read_permission(obj)
+                  self.check_read_permission(self.model, obj)
 
                 rel_model = get_model(kwargs[self.rel_name])
                 if rel_model is None:
@@ -794,7 +792,7 @@ class Resource(ModelView):
   def post(*args, **kwargs):
     raise NotImplementedError()
 
-  def check_read_permission(self, obj):
+  def check_read_permission(self, model, obj):
     """Check read permissions for GET resource by id request"""
     if (not permissions.is_allowed_read(
       self.model.__name__, obj.id, obj.context_id)
@@ -813,7 +811,7 @@ class Resource(ModelView):
       return self.not_found_response()
 
     with benchmark("Query read permissions"):
-      self.check_read_permission(obj)
+      self.check_read_permission(self.model, obj)
 
     with benchmark("Serialize object"):
       object_for_json = self.object_for_json(obj)
