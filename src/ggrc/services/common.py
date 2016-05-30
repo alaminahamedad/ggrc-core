@@ -495,7 +495,7 @@ class ModelView(View):
       ids = RelationshipHelper.get_ids_related_to(
         object_type=model.__name__,
         related_type=self.model.__name__,
-        related_ids=[self._related_id],
+        related_ids=[rel_model_id],
       )
       query = query.filter(model.id.in_(ids))
 
