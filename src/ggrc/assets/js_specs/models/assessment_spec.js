@@ -50,15 +50,9 @@ describe('can.Model.Assessment', function () {
 
   describe('findAll() method', function () {
     beforeAll(function () {
-      GGRC.page_instance = function () {
-        return {
-          type: "Person"
-        };
-      };
-    });
-
-    afterAll(function () {
-      GGRC.page_instance = undefined;
+      spyOn(GGRC, 'page_instance').and.returnValue({
+        type: "Person"
+      });
     });
 
     it("makes a call on backend with specific url", function () {
