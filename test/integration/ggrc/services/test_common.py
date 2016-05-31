@@ -16,10 +16,10 @@ from datetime import datetime
 from ggrc import db
 from ggrc.fulltext import get_indexer
 from ggrc.fulltext.recordbuilder import fts_record_for
-from ggrc.models.all_models import register_model
 from ggrc.models.mixins import Base
 from ggrc.services.common import Resource
 from integration.ggrc import TestCase
+from integration.ggrc.services import model_registered
 from urlparse import urlparse
 from wsgiref.handlers import format_date_time
 from nose.plugins.skip import SkipTest
@@ -339,8 +339,6 @@ class TestResource(TestCase):
         ggrc.db.session.add(index_record)
       ggrc.db.session.commit()
 
-    register_model(ServicesTestMockModel)
-
     mock_model1 = self.mock_model(title='foo')
     mock_model2 = self.mock_model(title='bar')
     make_mock_index(mock_model1, ['title'])
@@ -348,42 +346,47 @@ class TestResource(TestCase):
     mock1 = mock_model1.to_json()
     mock2 = mock_model2.to_json()
 
-    resp_models, _ = self.parse_response(self.client.get(
-      self.mock_url(search='foo'),
-      headers=self.headers(),
-    ))
-    self.assertListEqual([mock1], resp_models)
+    with model_registered(ServicesTestMockModel):
 
-    resp_models, _ = self.parse_response(self.client.get(
-      self.mock_url(search='baz'),
-      headers=self.headers(),
-    ))
-    self.assertListEqual([], resp_models)
+      resp_models, _ = self.parse_response(self.client.get(
+        self.mock_url(search='foo'),
+        headers=self.headers(),
+      ))
+      self.assertListEqual([mock1], resp_models)
 
-    resp_models, _ = self.parse_response(self.client.get(
-      self.mock_url(search='title=foo'),
-      headers=self.headers(),
-    ))
-    self.assertListEqual([mock1], resp_models)
+      resp_models, _ = self.parse_response(self.client.get(
+        self.mock_url(search='baz'),
+        headers=self.headers(),
+      ))
+      self.assertListEqual([], resp_models)
 
-    resp_models, _ = self.parse_response(self.client.get(
-      self.mock_url(search='title=baz'),
-      headers=self.headers(),
-    ))
-    self.assertListEqual([], resp_models)
+      resp_models, _ = self.parse_response(self.client.get(
+        self.mock_url(search='title=foo'),
+        headers=self.headers(),
+      ))
+      self.assertListEqual([mock1], resp_models)
 
-    resp_models, _ = self.parse_response(self.client.get(
-      self.mock_url(search='title!=foo'),
-      headers=self.headers(),
-    ))
-    self.assertListEqual([mock2], resp_models)
+      resp_models, _ = self.parse_response(self.client.get(
+        self.mock_url(search='title=baz'),
+        headers=self.headers(),
+      ))
+      self.assertListEqual([], resp_models)
 
-    resp_models, _ = self.parse_response(self.client.get(
-      self.mock_url(search='title!=baz'),
-      headers=self.headers(),
-    ))
-    self.assertListEqual(sorted([mock1, mock2], key=lambda model: model['id']),
-                         sorted(resp_models, key=lambda model: model['id']))
+      resp_models, _ = self.parse_response(self.client.get(
+        self.mock_url(search='title!=foo'),
+        headers=self.headers(),
+      ))
+      self.assertListEqual([mock2], resp_models)
+
+      resp_models, _ = self.parse_response(self.client.get(
+        self.mock_url(search='title!=baz'),
+        headers=self.headers(),
+      ))
+
+      def model_key(model):
+        return model['id']
+      self.assertListEqual(sorted([mock1, mock2], key=model_key),
+                           sorted(resp_models, key=model_key))
 
   def test_collection_get_search_on_real_index(self):
     """Test collection GET method from common.py `__search`ing on real index"""
@@ -395,26 +398,28 @@ class TestResource(TestCase):
     indexer.create_record(fts_record_for(mock_model1))
     indexer.create_record(fts_record_for(mock_model2))
 
-    resp_models, _ = self.parse_response(self.client.get(
-      self.mock_url(search='foo=foo_value_1'),
-      headers=self.headers(),
-    ))
-    self.assertListEqual([mock1], resp_models)
-    resp_models, _ = self.parse_response(self.client.get(
-      self.mock_url(search='title=title_value_1'),
-      headers=self.headers(),
-    ))
-    self.assertListEqual([mock1], resp_models)
-    resp_models, _ = self.parse_response(self.client.get(
-      self.mock_url(search='foo=foo_value_2'),
-      headers=self.headers(),
-    ))
-    self.assertListEqual([mock2], resp_models)
-    resp_models, _ = self.parse_response(self.client.get(
-      self.mock_url(search='title=title_value_2'),
-      headers=self.headers(),
-    ))
-    self.assertListEqual([mock2], resp_models)
+    with model_registered(ServicesTestMockModel):
+
+      resp_models, _ = self.parse_response(self.client.get(
+        self.mock_url(search='foo=foo_value_1'),
+        headers=self.headers(),
+      ))
+      self.assertListEqual([mock1], resp_models)
+      resp_models, _ = self.parse_response(self.client.get(
+        self.mock_url(search='title=title_value_1'),
+        headers=self.headers(),
+      ))
+      self.assertListEqual([mock1], resp_models)
+      resp_models, _ = self.parse_response(self.client.get(
+        self.mock_url(search='foo=foo_value_2'),
+        headers=self.headers(),
+      ))
+      self.assertListEqual([mock2], resp_models)
+      resp_models, _ = self.parse_response(self.client.get(
+        self.mock_url(search='title=title_value_2'),
+        headers=self.headers(),
+      ))
+      self.assertListEqual([mock2], resp_models)
 
   def test_resource_get(self):
     """Test resource GET method from common.py"""

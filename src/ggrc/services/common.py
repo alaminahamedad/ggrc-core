@@ -25,7 +25,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 import sqlalchemy.orm.exc
 from werkzeug.datastructures import ImmutableMultiDict
-from werkzeug.exceptions import BadRequest, Forbidden
+from werkzeug.exceptions import BadRequest, Forbidden, NotFound
 
 import ggrc.builder.json
 import ggrc.models
@@ -379,7 +379,6 @@ class ModelView(View):
   rel_type = 'string'
 
   _model = None
-  _related_id = None
 
   # Simple accessor properties
   @property
@@ -452,13 +451,15 @@ class ModelView(View):
     return columns
 
   def get_collection_matches(self, model, request_args,
-                             filter_by_contexts=True):
+                             filter_by_contexts=True,
+                             rel_model_id=None):
     columns = self.get_match_columns(model)
     filter_clause = self._get_type_where_clause(model)
     query = db.session.query(*columns).filter(filter_clause)
     return self.filter_query_by_request(
         query=query,
         model=model,
+        rel_model_id=rel_model_id,
         request_args=request_args,
         filter_by_contexts=filter_by_contexts,
     )
@@ -487,14 +488,14 @@ class ModelView(View):
     )
 
   def filter_query_by_request(self, query, model, request_args,
-                              filter_by_contexts=True):  # noqa
+                              filter_by_contexts=True, rel_model_id=None):  # noqa
     joinlist = []
-    if self._related_id is not None:
+    if rel_model_id is not None:
       from ggrc.models.relationship_helper import RelationshipHelper
       ids = RelationshipHelper.get_ids_related_to(
         object_type=model.__name__,
         related_type=self.model.__name__,
-        related_ids=[self._related_id],
+        related_ids=[rel_model_id],
       )
       query = query.filter(model.id.in_(ids))
 
@@ -646,6 +647,7 @@ class ModelView(View):
 # View base class for Views handling
 #   - /resources (GET, POST)
 #   - /resources/<pk:pk_type> (GET, PUT, POST, DELETE)
+#   - /resources/<pk:pk_type>/<rel_name:rel_type> (GET)
 class Resource(ModelView):
   """View base class for Views handling.  Will typically be registered with an
   application following a collection style for routes. Collection `GET` and
@@ -750,17 +752,13 @@ class Resource(ModelView):
                   return self.not_found_response()
 
                 with benchmark("Query read permissions"):
-                  if not permissions.is_allowed_read(
-                    self.model.__name__, obj.id, obj.context_id) \
-                    and not permissions.has_conditions('read', self.model.__name__):
-                    raise Forbidden()
-                  if not permissions.is_allowed_read_for(obj):
-                    raise Forbidden()
+                  self.check_read_permission(self.model, obj)
 
                 rel_model = get_model(kwargs[self.rel_name])
-                self._related_id = obj.id
+                if rel_model is None:
+                  raise NotFound()
 
-                return self.collection_get(rel_model)
+                return self.collection_get(rel_model, obj.id)
               else:
                 return self.get(*args, **kwargs)
             else:
@@ -794,6 +792,16 @@ class Resource(ModelView):
   def post(*args, **kwargs):
     raise NotImplementedError()
 
+  def check_read_permission(self, model, obj):
+    """Check read permissions for GET resource by id request"""
+    if (not permissions.is_allowed_read(
+      self.model.__name__, obj.id, obj.context_id)
+        and not permissions.has_conditions(
+        'read', self.model.__name__)):
+      raise Forbidden()
+    if not permissions.is_allowed_read_for(obj):
+      raise Forbidden()
+
   @_check_accept_header
   def get(self, id):
     """Default JSON request handlers"""
@@ -803,12 +811,7 @@ class Resource(ModelView):
       return self.not_found_response()
 
     with benchmark("Query read permissions"):
-      if not permissions.is_allowed_read(
-          self.model.__name__, obj.id, obj.context_id)\
-         and not permissions.has_conditions('read', self.model.__name__):
-        raise Forbidden()
-      if not permissions.is_allowed_read_for(obj):
-        raise Forbidden()
+      self.check_read_permission(self.model, obj)
 
     with benchmark("Serialize object"):
       object_for_json = self.object_for_json(obj)
@@ -1019,7 +1022,7 @@ class Resource(ModelView):
     return objs, cache_op
 
   @_check_accept_header
-  def collection_get(self, model):
+  def collection_get(self, model, rel_model_id=None):
     """Get collection matches, apply search and sorting"""
     with benchmark("dispatch_request > collection_get > Collection matches"):
       # We skip querying by contexts for Creator role and relationship objects,
@@ -1031,6 +1034,7 @@ class Resource(ModelView):
       )
       matches_query = self.get_collection_matches(
           model=model,
+          rel_model_id=rel_model_id,
           request_args=request.args,
           filter_by_contexts=filter_by_contexts,
       )
@@ -1290,6 +1294,9 @@ class Resource(ModelView):
 
   @classmethod
   def add_to(cls, app, url, model_class=None, decorators=()):
+    """Attach views to the application like a regular function by either
+       using route decorator
+    """
     if model_class:
       service_class = type(model_class.__name__, (cls,), {
           '_model': model_class,
