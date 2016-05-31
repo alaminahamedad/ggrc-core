@@ -551,7 +551,7 @@ class ModelView(View):
           attr_desc = not sort_desc
           sort_attr = sort_attr[1:]
         order_property = getattr(model, sort_attr, None)
-        if order_property and hasattr(order_property, 'desc'):
+        if order_property is not None and hasattr(order_property, 'desc'):
           order_properties.append(
               order_property.desc() if attr_desc else order_property.asc()
           )
