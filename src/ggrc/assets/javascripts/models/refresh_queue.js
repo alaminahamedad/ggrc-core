@@ -125,15 +125,26 @@ can.Construct("RefreshQueueManager", {
 
       if (!found_queue) {
         can.each(this.queues, function(queue) {
-          if (!found_queue && queue.model === model
-              && !queue.triggered && queue.ids.length < 150) {
+          var isEnqueue = !found_queue && queue.model === model
+            && !queue.triggered;
+          var instance = GGRC.page_object;
+          /* NOTE
+           Temporary solutions for apply pagination on Assessments view.
+           We do not use batch loading for Assessment list.
+           */
+          if (instance && instance.type !== 'Audit' && queue.model &&
+            queue.model.shortName !== 'Assessment') {
+            isEnqueue = isEnqueue && queue.ids.length < 150;
+          }
+
+          if (isEnqueue) {
             found_queue = queue.enqueue(id);
             return false;
           }
         });
         if (!found_queue) {
           found_queue = new ModelRefreshQueue(model);
-          this.queues.push(found_queue)
+          this.queues.push(found_queue);
           found_queue.enqueue(id);
           found_queue.deferred.done(function() {
             var index = self.queues.indexOf(found_queue);

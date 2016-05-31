@@ -48,7 +48,7 @@ can.Control("GGRC.Controllers.TreeFilter", {
 
     parent.options.paging.attr('filter', filter);
     parent.options.paging.attr('current', 1);
-    parent.find();
+    parent.refresh_page();
   },
   apply_filter : function () {
     var value = this.element.find("input[type=text]")[0].value;

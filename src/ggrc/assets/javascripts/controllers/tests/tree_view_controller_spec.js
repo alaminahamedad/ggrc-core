@@ -130,7 +130,7 @@ describe('CMS.Controllers.TreeView', function () {
     });
   });
 
-  describe('find() method', function () {
+  describe('refresh_page() method', function () {
     var ctrlInst;  // fake controller instance
     var method;
     var $element;
@@ -151,10 +151,10 @@ describe('CMS.Controllers.TreeView', function () {
         })
       };
 
-      method = Ctrl.prototype.find.bind(ctrlInst);
+      method = Ctrl.prototype.refresh_page.bind(ctrlInst);
     });
 
-    it('find()', function () {
+    it('refresh_page()', function () {
       spyOn(ctrlInst.options.model, "findAll")
         .and.returnValue(new $.Deferred().resolve([]));
 
