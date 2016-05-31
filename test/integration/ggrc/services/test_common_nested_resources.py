@@ -7,16 +7,22 @@
 Test REST API calls for nested resources
 """
 
+# pylint: disable=invalid-name
+# pylint: disable=super-on-old-class
+# pylint: disable=too-few-public-methods
+
 from ggrc import app
 from ggrc import db
 from ggrc.models.mixins import Base
 from ggrc.services.common import Resource
 from integration.ggrc import TestCase
+from integration.ggrc.api_helper import Api
 from integration.ggrc.generator import ObjectGenerator
 from integration.ggrc.services import model_registered
 
 
 class OuterModel(Base, db.Model):
+  """First part of /api/{outer_model}/{id}/{inner_model} address"""
   __tablename__ = 'outer_model'
   title = db.Column(db.String)
 
@@ -26,6 +32,7 @@ class OuterModel(Base, db.Model):
 
 
 class InnerModel(Base, db.Model):
+  """Last part of /api/{outer_model}/{id}/{inner_model} address"""
   __tablename__ = 'inner_model'
   title = db.Column(db.String)
 
@@ -34,19 +41,12 @@ class InnerModel(Base, db.Model):
   _fulltext_attrs = ['title']
 
 
-def url_mock_collection(model):
-  return '/api/{}'.format(model.__tablename__)
-
-
-def url_mock_resource(model):
-  return '/api/{}/{{0}}'.format(model.__tablename__)
-
-
 class TestNestedResources(TestCase):
   """Test requests to endpoints like '/audits/1/assessments'"""
 
   managed_models = [OuterModel, InnerModel]
 
+  COLLECTION_URL = '/api/{model}'
   OBJECT_URL = '/api/{obj_model}/{obj_id}'
   NESTED_OBJECT_URL = '{}/{{inner_obj_model}}'.format(OBJECT_URL)
 
@@ -54,7 +54,11 @@ class TestNestedResources(TestCase):
   def setUpClass(cls):
     super(TestNestedResources, cls).setUpClass()
     for model in cls.managed_models:
-      Resource.add_to(app.app, url_mock_collection(model), model_class=model)
+      Resource.add_to(
+        app.app,
+        cls.COLLECTION_URL.format(model=model.__tablename__),
+        model_class=model,
+      )
 
   def setUp(self):
     super(TestNestedResources, self).setUp()
@@ -63,6 +67,7 @@ class TestNestedResources(TestCase):
 
     self.object_generator = ObjectGenerator()
     self.client.get('/login')
+    self.api = Api()
 
   def tearDown(self):
     super(TestNestedResources, self).tearDown()
@@ -71,17 +76,10 @@ class TestNestedResources(TestCase):
     #   closed there.  (And otherwise it might stall due to locks).
     for model in reversed(self.managed_models):
       model.__table__.drop(db.engine, checkfirst=True)
-      pass
-
-  @staticmethod
-  def mock_model(model_class, **kwargs):
-    mock = model_class(**kwargs)
-    db.session.add(mock)
-    db.session.commit()
-    return mock
 
   @classmethod
   def mock_url(cls, obj, inner_class=None, override=None):
+    """Make a mock url to a certain object (optionally to its nested model)"""
     if override is None:
       override = {}
     parameters = {
@@ -101,6 +99,7 @@ class TestNestedResources(TestCase):
 
   @staticmethod
   def parse_response(response, inner_class):
+    """Fetch collection dict and models list from a json response"""
     model_name = inner_class.__tablename__
     collection_name = '{}_collection'.format(model_name)
 
@@ -108,10 +107,18 @@ class TestNestedResources(TestCase):
     models = collection[model_name]
     return models, collection
 
-  def test_get(self):
-    _, outer = self.object_generator.generate_object(OuterModel)
-    _, inner = self.object_generator.generate_object(InnerModel)
+  def make_outer_and_inner(self, outer_data=None, inner_data=None):
+    """Create OuterModel and InnerModel instances and a relationship between"""
+    _, outer = self.object_generator.generate_object(OuterModel,
+                                                     data=outer_data)
+    _, inner = self.object_generator.generate_object(InnerModel,
+                                                     data=inner_data)
     self.object_generator.generate_relationship(outer, inner)
+    return outer, inner
+
+  def test_get(self):
+    """Test get nested object collection"""
+    outer, inner = self.make_outer_and_inner()
 
     response = self.client.get(
       self.mock_url(obj=outer, inner_class=InnerModel),
@@ -125,11 +132,12 @@ class TestNestedResources(TestCase):
     self.assertEqual(models[0]['title'], inner.title)
 
   def test_get_multiple_results(self):
+    """Test get nested object collection with several items"""
     _, outer = self.object_generator.generate_object(OuterModel)
 
     inner_objects_count = 5
     ids_titles = []
-    for i in range(inner_objects_count):
+    for _ in range(inner_objects_count):
       _, inner = self.object_generator.generate_object(InnerModel)
       self.object_generator.generate_relationship(outer, inner)
       ids_titles.append((inner.id, inner.title))
@@ -153,6 +161,7 @@ class TestNestedResources(TestCase):
     )
 
   def test_get_no_results(self):
+    """Test get nested object collection with no items"""
     _, outer = self.object_generator.generate_object(OuterModel)
 
     response = self.client.get(
@@ -165,9 +174,8 @@ class TestNestedResources(TestCase):
     self.assertListEqual(models, [])
 
   def test_get_reverse_relationship(self):
-    _, outer = self.object_generator.generate_object(OuterModel)
-    _, inner = self.object_generator.generate_object(InnerModel)
-    self.object_generator.generate_relationship(outer, inner)
+    """Test get nested object collection with reversed relation direction"""
+    outer, inner = self.make_outer_and_inner()
 
     # "inner" and "outer" are swapped in this test intentionally
     response = self.client.get(
@@ -182,9 +190,8 @@ class TestNestedResources(TestCase):
     self.assertEqual(models[0]['title'], outer.title)
 
   def test_get_bad_accept(self):
-    _, outer = self.object_generator.generate_object(OuterModel)
-    _, inner = self.object_generator.generate_object(InnerModel)
-    self.object_generator.generate_relationship(outer, inner)
+    """Check that nested resource GET requires Accept header"""
+    outer, _ = self.make_outer_and_inner()
 
     response = self.client.get(
       self.mock_url(obj=outer, inner_class=InnerModel),
@@ -196,9 +203,8 @@ class TestNestedResources(TestCase):
     self.assertEqual(response.data, 'application/json')
 
   def test_get_invalid_id(self):
-    _, outer = self.object_generator.generate_object(OuterModel)
-    _, inner = self.object_generator.generate_object(InnerModel)
-    self.object_generator.generate_relationship(outer, inner)
+    """Check that nested resource GET returns 404 with invalid outer obj id"""
+    outer, _ = self.make_outer_and_inner()
 
     response = self.client.get(
       self.mock_url(obj=outer, inner_class=InnerModel,
@@ -208,9 +214,8 @@ class TestNestedResources(TestCase):
     self.assert404(response)
 
   def test_get_missing_id(self):
-    _, outer = self.object_generator.generate_object(OuterModel)
-    _, inner = self.object_generator.generate_object(InnerModel)
-    self.object_generator.generate_relationship(outer, inner)
+    """Check that nested resource GET returns 404 when outer obj is missing"""
+    outer, _ = self.make_outer_and_inner()
 
     response = self.client.get(
       self.mock_url(obj=outer, inner_class=InnerModel,
@@ -221,6 +226,7 @@ class TestNestedResources(TestCase):
     self.assert404(response)
 
   def test_get_invalid_inner_class(self):
+    """Check that nested resource GET returns 404 with invalid inner class"""
     class InvalidInnerClassModel(object):
       __tablename__ = 'there_should_be_no_such_model'
 
@@ -234,9 +240,8 @@ class TestNestedResources(TestCase):
     self.assert404(response)
 
   def test_get_search(self):
-    _, outer = self.object_generator.generate_object(OuterModel)
-    _, inner = self.object_generator.generate_object(InnerModel)
-    self.object_generator.generate_relationship(outer, inner)
+    """Check that search works with nested resources"""
+    outer, inner = self.make_outer_and_inner(inner_data={'title': 'foo'})
 
     with model_registered(InnerModel):
 
@@ -254,11 +259,13 @@ class TestNestedResources(TestCase):
     self.assertEqual(models[0]['title'], inner.title)
 
   def test_get_sort(self):
+    """Check that sorting works with nested resources"""
     objects = [self.object_generator.generate_object(OuterModel)[1]
-               for i in range(10)]
+               for _ in range(10)]
     titles = [obj.title for obj in objects]
 
     def check_sort_order(sort_parameters, expected_titles):
+      """Check that sorting with sort_parameters results in correct order"""
       response = self.client.get('/api/{model}?{param}'
                                  .format(model=OuterModel.__tablename__,
                                          param=sort_parameters))
