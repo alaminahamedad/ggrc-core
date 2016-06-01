@@ -55,9 +55,9 @@ class TestNestedResources(TestCase):
     super(TestNestedResources, cls).setUpClass()
     for model in cls.managed_models:
       Resource.add_to(
-        app.app,
-        cls.COLLECTION_URL.format(model=model.__tablename__),
-        model_class=model,
+          app.app,
+          cls.COLLECTION_URL.format(model=model.__tablename__),
+          model_class=model,
       )
 
   def setUp(self):
@@ -83,8 +83,8 @@ class TestNestedResources(TestCase):
     if override is None:
       override = {}
     parameters = {
-      'obj_model': type(obj).__tablename__,
-      'obj_id': obj.id,
+        'obj_model': type(obj).__tablename__,
+        'obj_id': obj.id,
     }
     if inner_class is None:
       # url for a single object
@@ -129,7 +129,7 @@ class TestNestedResources(TestCase):
     outer, inner = self.make_outer_and_inner()
 
     response = self.client.get(
-      self.mock_url(obj=outer, inner_class=InnerModel),
+        self.mock_url(obj=outer, inner_class=InnerModel),
     )
 
     self.assert200(response)
@@ -151,7 +151,7 @@ class TestNestedResources(TestCase):
       ids_titles.append((inner.id, inner.title))
 
     response = self.client.get(
-      self.mock_url(obj=outer, inner_class=InnerModel),
+        self.mock_url(obj=outer, inner_class=InnerModel),
     )
 
     self.assert200(response)
@@ -162,10 +162,10 @@ class TestNestedResources(TestCase):
 
     self.assertEqual(len(models), inner_objects_count)
     self.assertListEqual(
-      sorted([(model['id'], model['title']) for model in models],
-             key=id_title_key),
-      sorted(ids_titles,
-             key=id_title_key),
+        sorted([(model['id'], model['title']) for model in models],
+               key=id_title_key),
+        sorted(ids_titles,
+               key=id_title_key),
     )
 
   def test_get_no_results(self):
@@ -173,7 +173,7 @@ class TestNestedResources(TestCase):
     outer = self.make_outer()
 
     response = self.client.get(
-      self.mock_url(obj=outer, inner_class=InnerModel),
+        self.mock_url(obj=outer, inner_class=InnerModel),
     )
 
     self.assert200(response)
@@ -187,7 +187,7 @@ class TestNestedResources(TestCase):
 
     # "inner" and "outer" are swapped in this test intentionally
     response = self.client.get(
-      self.mock_url(obj=inner, inner_class=OuterModel),
+        self.mock_url(obj=inner, inner_class=OuterModel),
     )
 
     self.assert200(response)
@@ -202,8 +202,8 @@ class TestNestedResources(TestCase):
     outer, _ = self.make_outer_and_inner()
 
     response = self.client.get(
-      self.mock_url(obj=outer, inner_class=InnerModel),
-      headers={'Accept': 'text/plain'},
+        self.mock_url(obj=outer, inner_class=InnerModel),
+        headers={'Accept': 'text/plain'},
     )
 
     self.assertStatus(response, 406)
@@ -215,8 +215,8 @@ class TestNestedResources(TestCase):
     outer, _ = self.make_outer_and_inner()
 
     response = self.client.get(
-      self.mock_url(obj=outer, inner_class=InnerModel,
-                    override={'obj_id': 'text is not acceptable'}),
+        self.mock_url(obj=outer, inner_class=InnerModel,
+                      override={'obj_id': 'text is not acceptable'}),
     )
 
     self.assert404(response)
@@ -226,9 +226,9 @@ class TestNestedResources(TestCase):
     outer, _ = self.make_outer_and_inner()
 
     response = self.client.get(
-      self.mock_url(obj=outer, inner_class=InnerModel,
-                    # assume there is no item with this id
-                    override={'obj_id': 99999}),
+        self.mock_url(obj=outer, inner_class=InnerModel,
+                      # assume there is no item with this id
+                      override={'obj_id': 99999}),
     )
 
     self.assert404(response)
@@ -241,8 +241,8 @@ class TestNestedResources(TestCase):
     outer = self.make_outer()
 
     response = self.client.get(
-      self.mock_url(obj=outer,
-                    inner_class=InvalidInnerClassModel),
+        self.mock_url(obj=outer,
+                      inner_class=InvalidInnerClassModel),
     )
 
     self.assert404(response)
@@ -254,9 +254,9 @@ class TestNestedResources(TestCase):
     with model_registered(InnerModel):
 
       response = self.client.get(
-        (self.mock_url(obj=outer,
-                       inner_class=InnerModel) +
-         '?__search=title={}'.format(inner.title)),
+          (self.mock_url(obj=outer,
+                         inner_class=InnerModel) +
+           '?__search=title={}'.format(inner.title)),
       )
 
     self.assert200(response)
@@ -279,9 +279,10 @@ class TestNestedResources(TestCase):
 
       def check_sort_order(sort_parameters, expected_titles):
         """Check that sorting with sort_parameters results in correct order"""
-        response = self.client.get('{url}?{param}'
-                                   .format(url=self.mock_url(outer, InnerModel),
-                                           param=sort_parameters))
+        response = self.client.get(
+            '{url}?{param}'.format(url=self.mock_url(outer, InnerModel),
+                                   param=sort_parameters),
+        )
 
         resp_models, _ = self.parse_response(response, InnerModel)
         resp_titles = [obj['title'] for obj in resp_models]
@@ -289,12 +290,12 @@ class TestNestedResources(TestCase):
         self.assertListEqual(resp_titles, expected_titles)
 
       cases = (
-        ('__sort=title', sorted(titles)),
-        ('__sort=-title', sorted(titles, reverse=True)),
-        ('__sort=title&__sort_desc=false', sorted(titles)),
-        ('__sort=-title&__sort_desc=false', sorted(titles, reverse=True)),
-        ('__sort=title&__sort_desc=true', sorted(titles, reverse=True)),
-        ('__sort=-title&__sort_desc=true', sorted(titles)),
+          ('__sort=title', sorted(titles)),
+          ('__sort=-title', sorted(titles, reverse=True)),
+          ('__sort=title&__sort_desc=false', sorted(titles)),
+          ('__sort=-title&__sort_desc=false', sorted(titles, reverse=True)),
+          ('__sort=title&__sort_desc=true', sorted(titles, reverse=True)),
+          ('__sort=-title&__sort_desc=true', sorted(titles)),
       )
       for sort_parameters, expected_titles in cases:
         check_sort_order(sort_parameters, expected_titles)

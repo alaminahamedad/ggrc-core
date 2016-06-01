@@ -60,7 +60,7 @@ class ServicesTestMockModel(Base, ggrc.db.Model):
         u'updated_at': updated_at,
         u'created_at': created_at,
         u'context': {u'id': self.context_id}
-            if self.context_id is not None else None,
+        if self.context_id is not None else None,
         u'foo': (unicode(self.foo) if self.foo else None),
         u'title': (unicode(self.title) if self.title else None),
         u'code': (unicode(self.code) if self.code else None),
@@ -216,8 +216,8 @@ class TestResource(TestCase):
     response = self.client.get(self.mock_url(), headers=self.headers())
     self.assert200(response)
     self.assertRequiredHeaders(
-      response=response,
-      headers={'Last-Modified': self.http_timestamp(last_modified)},
+        response=response,
+        headers={'Last-Modified': self.http_timestamp(last_modified)},
     )
     resp_models, collection = self.parse_response(response=response)
     self.assertIn('test_model_collection', response.json)
@@ -336,10 +336,10 @@ class TestResource(TestCase):
       indexer = get_indexer()
       for prop in property_list:
         index_record = indexer.record_type(
-          key=mock_model.id,
-          type=mock_model.__class__.__name__,
-          property=prop,
-          content=getattr(mock_model, prop),
+            key=mock_model.id,
+            type=mock_model.__class__.__name__,
+            property=prop,
+            content=getattr(mock_model, prop),
         )
         ggrc.db.session.add(index_record)
       ggrc.db.session.commit()
@@ -354,38 +354,38 @@ class TestResource(TestCase):
     with model_registered(ServicesTestMockModel):
 
       resp_models, _ = self.parse_response(self.client.get(
-        self.mock_url(search='foo'),
-        headers=self.headers(),
+          self.mock_url(search='foo'),
+          headers=self.headers(),
       ))
       self.assertListEqual([mock1], resp_models)
 
       resp_models, _ = self.parse_response(self.client.get(
-        self.mock_url(search='baz'),
-        headers=self.headers(),
+          self.mock_url(search='baz'),
+          headers=self.headers(),
       ))
       self.assertListEqual([], resp_models)
 
       resp_models, _ = self.parse_response(self.client.get(
-        self.mock_url(search='title=foo'),
-        headers=self.headers(),
+          self.mock_url(search='title=foo'),
+          headers=self.headers(),
       ))
       self.assertListEqual([mock1], resp_models)
 
       resp_models, _ = self.parse_response(self.client.get(
-        self.mock_url(search='title=baz'),
-        headers=self.headers(),
+          self.mock_url(search='title=baz'),
+          headers=self.headers(),
       ))
       self.assertListEqual([], resp_models)
 
       resp_models, _ = self.parse_response(self.client.get(
-        self.mock_url(search='title!=foo'),
-        headers=self.headers(),
+          self.mock_url(search='title!=foo'),
+          headers=self.headers(),
       ))
       self.assertListEqual([mock2], resp_models)
 
       resp_models, _ = self.parse_response(self.client.get(
-        self.mock_url(search='title!=baz'),
-        headers=self.headers(),
+          self.mock_url(search='title!=baz'),
+          headers=self.headers(),
       ))
 
       def model_key(model):
@@ -406,23 +406,23 @@ class TestResource(TestCase):
     with model_registered(ServicesTestMockModel):
 
       resp_models, _ = self.parse_response(self.client.get(
-        self.mock_url(search='foo=foo_value_1'),
-        headers=self.headers(),
+          self.mock_url(search='foo=foo_value_1'),
+          headers=self.headers(),
       ))
       self.assertListEqual([mock1], resp_models)
       resp_models, _ = self.parse_response(self.client.get(
-        self.mock_url(search='title=title_value_1'),
-        headers=self.headers(),
+          self.mock_url(search='title=title_value_1'),
+          headers=self.headers(),
       ))
       self.assertListEqual([mock1], resp_models)
       resp_models, _ = self.parse_response(self.client.get(
-        self.mock_url(search='foo=foo_value_2'),
-        headers=self.headers(),
+          self.mock_url(search='foo=foo_value_2'),
+          headers=self.headers(),
       ))
       self.assertListEqual([mock2], resp_models)
       resp_models, _ = self.parse_response(self.client.get(
-        self.mock_url(search='title=title_value_2'),
-        headers=self.headers(),
+          self.mock_url(search='title=title_value_2'),
+          headers=self.headers(),
       ))
       self.assertListEqual([mock2], resp_models)
 
@@ -434,11 +434,12 @@ class TestResource(TestCase):
                                headers=self.headers())
     self.assert200(response)
     self.assertRequiredHeaders(
-      response=response,
-      headers={'Last-Modified': self.http_timestamp(last_modified)},
+        response=response,
+        headers={'Last-Modified': self.http_timestamp(last_modified)},
     )
     self.assertIn('services_test_mock_model', response.json)
-    self.assertDictEqual(models_json[0], response.json['services_test_mock_model'])
+    self.assertDictEqual(models_json[0],
+                         response.json['services_test_mock_model'])
 
   def test_collection_put(self):
     self.assertAllow(
@@ -498,8 +499,8 @@ class TestResource(TestCase):
 
   def test_collection_post_successful_multiple(self):
     data = json.dumps([
-      {'services_test_mock_model': {'foo': 'bar1', 'context': None}},
-      {'services_test_mock_model': {'foo': 'bar2', 'context': None}},
+        {'services_test_mock_model': {'foo': 'bar1', 'context': None}},
+        {'services_test_mock_model': {'foo': 'bar2', 'context': None}},
     ])
     response = self.client.post(
         URL_MOCK_COLLECTION,
@@ -521,14 +522,14 @@ class TestResource(TestCase):
 
   def test_collection_post_successful_multiple_with_errors(self):
     data = json.dumps([
-      {'services_test_mock_model':
-        {'foo': 'bar1', 'code': 'f1', 'context': None}},
-      {'services_test_mock_model':
-        {'foo': 'bar1', 'code': 'f1', 'context': None}},
-      {'services_test_mock_model':
-        {'foo': 'bar2', 'code': 'f2', 'context': None}},
-      {'services_test_mock_model':
-        {'foo': 'bar2', 'code': 'f2', 'context': None}},
+        {'services_test_mock_model':
+            {'foo': 'bar1', 'code': 'f1', 'context': None}},
+        {'services_test_mock_model':
+            {'foo': 'bar1', 'code': 'f1', 'context': None}},
+        {'services_test_mock_model':
+            {'foo': 'bar2', 'code': 'f2', 'context': None}},
+        {'services_test_mock_model':
+            {'foo': 'bar2', 'code': 'f2', 'context': None}},
     ])
     response = self.client.post(
         URL_MOCK_COLLECTION,

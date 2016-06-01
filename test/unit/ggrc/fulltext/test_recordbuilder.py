@@ -45,14 +45,14 @@ class TestRecordBuilder(unittest.TestCase):
     result = builder.as_record(obj_mock)
 
     record_mock.assert_called_once_with(
-      obj_mock.id,
-      obj_mock.__class__.__name__,
-      obj_mock.context_id,
-      '',  # hardcoded empty parameter in recordbuilder.py
-      **{
-        'one_field': obj_mock.one_field,
-        'another_field': obj_mock.another_field,
-        'compound_field.sub': obj_mock.compound_field.sub,
-      }
+        obj_mock.id,
+        obj_mock.__class__.__name__,
+        obj_mock.context_id,
+        '',  # hardcoded empty parameter in recordbuilder.py
+        **{
+            'one_field': obj_mock.one_field,
+            'another_field': obj_mock.another_field,
+            'compound_field.sub': obj_mock.compound_field.sub,
+        }
     )
     self.assertEqual(record_mock(), result)

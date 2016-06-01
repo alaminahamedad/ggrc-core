@@ -363,7 +363,7 @@ def _check_accept_header(func):
     if ('Accept' in self.request.headers and
             'application/json' not in self.request.headers['Accept']):
       return current_app.make_response(
-        ('application/json', 406, [('Content-Type', 'text/plain')])
+          ('application/json', 406, [('Content-Type', 'text/plain')])
       )
     return func(self, *args, **kwargs)
 
@@ -476,7 +476,7 @@ class ModelView(View):
   def get_collection(self, request_args, filter_by_contexts=True):
     """Get collection filtered by request arguments"""
     if ('__stubs_only' not in request_args and
-          hasattr(self.model, 'eager_query')):
+            hasattr(self.model, 'eager_query')):
       query = self.model.eager_query()
     else:
       query = db.session.query(self.model)
@@ -488,8 +488,8 @@ class ModelView(View):
         filter_by_contexts=filter_by_contexts,
     )
 
-  def filter_query_by_request(self, query, model, request_args,
-                              filter_by_contexts=True, rel_model_id=None):  # noqa
+  def filter_query_by_request(self, query, model, request_args,  # noqa: too long
+                              filter_by_contexts=True, rel_model_id=None):
     """Filter query based on the request arguments and relation model id.
 
     Used filter parameters: __search, __sort, __limit.
@@ -498,9 +498,9 @@ class ModelView(View):
     if rel_model_id is not None:
       from ggrc.models.relationship_helper import RelationshipHelper
       ids = RelationshipHelper.get_ids_related_to(
-        object_type=model.__name__,
-        related_type=self.model.__name__,
-        related_ids=[rel_model_id],
+          object_type=model.__name__,
+          related_type=self.model.__name__,
+          related_ids=[rel_model_id],
       )
       query = query.filter(model.id.in_(ids))
 
@@ -601,8 +601,11 @@ class ModelView(View):
     other column with a relevant timestamp; services for models that don't have
     this field **MUST** override this method.
     """
-    result = db.session.query(
-        self.modified_at(model)).order_by(self.modified_at(model).desc()).first()
+    result = (
+        db.session.query(
+            self.modified_at(model))
+        .order_by(self.modified_at(model).desc())
+        .first())
     if result is not None:
       return self.modified_at(result)
     return datetime.datetime.now()
@@ -800,9 +803,9 @@ class Resource(ModelView):
   def check_read_permission(self, model, obj):
     """Check read permissions for GET resource by id request"""
     if (not permissions.is_allowed_read(
-      self.model.__name__, obj.id, obj.context_id)
-        and not permissions.has_conditions(
-        'read', self.model.__name__)):
+        self.model.__name__, obj.id, obj.context_id) and
+        not permissions.has_conditions(
+            'read', self.model.__name__)):
       raise Forbidden()
     if not permissions.is_allowed_read_for(obj):
       raise Forbidden()
@@ -1065,7 +1068,8 @@ class Resource(ModelView):
             'context_id': m[2],
         } for m in matches]
       else:
-        objs, cache_op = self.get_matched_resources(model=model, matches=matches)
+        objs, cache_op = self.get_matched_resources(model=model,
+                                                    matches=matches)
         with benchmark("Filter resources based on permissions"):
           objs = filter_resource(objs)
 
@@ -1078,7 +1082,8 @@ class Resource(ModelView):
         custom_fields = request.args['__fields'].split(',')
         objs = [{f: o[f] for f in custom_fields if f in o} for o in objs]
       with benchmark("Serialize collection"):
-        collection = self.build_collection_representation(objs, model=model, extras=extras)
+        collection = self.build_collection_representation(objs, model=model,
+                                                          extras=extras)
 
       if ('If-None-Match' in self.request.headers and
               self.request.headers['If-None-Match'] == etag(collection)):
@@ -1317,7 +1322,8 @@ class Resource(ModelView):
     view_func = service_class.as_view(service_class.endpoint_name())
     view_func = cls.decorate_view_func(view_func, decorators)
 
-    fmt = lambda **kwargs: '<{type}:{value}>'.format(**kwargs)
+    def fmt(**kwargs):
+      '<{type}:{value}>'.format(**kwargs)
     single_res = fmt(type=cls.pk_type, value=cls.pk)
     nested_res = fmt(type=cls.rel_type, value=cls.rel_name)
 

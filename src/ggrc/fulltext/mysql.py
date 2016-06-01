@@ -144,15 +144,15 @@ class MysqlIndexer(SqlIndexer):
       column_name, value = terms.split('!=', 1)
       value = value.strip('"')
       filters = and_(
-        self.record_type.property == column_name.strip().lower(),
-        self.record_type.content != value.strip().lower(),
+          self.record_type.property == column_name.strip().lower(),
+          self.record_type.content != value.strip().lower(),
       )
     elif '=' in terms:
       column_name, value = terms.split('=', 1)
       value = value.strip('"')
       filters = and_(
-        self.record_type.property == column_name.strip().lower(),
-        self.record_type.content == value.strip().lower(),
+          self.record_type.property == column_name.strip().lower(),
+          self.record_type.content == value.strip().lower(),
       )
     else:
       filters = and_(self._default_search_fields(),
