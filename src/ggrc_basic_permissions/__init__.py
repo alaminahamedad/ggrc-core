@@ -71,48 +71,65 @@ def objects_via_assignable_query(user_id, context_not_role=True):
             | id | type | context_id |
   """
 
-  rel1 = aliased(all_models.Relationship, name="rel1")
-  rel2 = aliased(all_models.Relationship, name="rel2")
-  _attrs = aliased(all_models.RelationshipAttr, name="attrs")
+  # aliases to join the relationships
+  person_to_assignable = aliased(all_models.Relationship,
+                                 name="person_to_assignable")
+  assignable_to_mapped = aliased(all_models.Relationship,
+                                 name="assignable_to_mapped")
+  relationship_attrs = aliased(all_models.RelationshipAttr, name="attrs")
+
+  # helpers to select person and assignable sides from person_to_assignable
+  pta_person_id = case(
+      [(person_to_assignable.destination_type == "Person",
+        person_to_assignable.destination_id)],
+      else_=person_to_assignable.source_id,
+  )
+  pta_assignable_id = case(
+      [(person_to_assignable.destination_type == "Person",
+        person_to_assignable.source_id)],
+      else_=person_to_assignable.destination_id,
+  )
+  pta_assignable_type = case(
+      [(person_to_assignable.destination_type == "Person",
+        person_to_assignable.source_type)],
+      else_=person_to_assignable.destination_type,
+  )
 
   def assignable_join(query):
     """Joins relationship_attrs to the query. This filters out only the
        relationship objects where the user is mapped with an AssigneeType.
     """
     return query.join(
-        _attrs, and_(
-            _attrs.relationship_id == rel1.id,
-            _attrs.attr_name == "AssigneeType",
-            case([
-                (rel1.destination_type == "Person",
-                 rel1.destination_id)
-            ], else_=rel1.source_id) == user_id))
+        relationship_attrs, and_(
+            relationship_attrs.relationship_id == person_to_assignable.id,
+            relationship_attrs.attr_name == "AssigneeType",
+            pta_person_id == user_id))
 
   def related_assignables():
     """Header for the mapped_objects join"""
+    atm_mapped_id = case(
+        [(assignable_to_mapped.destination_type == pta_assignable_type,
+          assignable_to_mapped.source_id)],
+        else_=assignable_to_mapped.destination_id,
+    )
+    atm_mapped_type = case(
+        [(assignable_to_mapped.destination_type == pta_assignable_type,
+          assignable_to_mapped.source_type)],
+        else_=assignable_to_mapped.destination_type,
+    )
+
     return db.session.query(
-        case([
-            (rel2.destination_type == rel1.destination_type,
-             rel2.source_id)
-        ], else_=rel2.destination_id).label('id'),
-        case([
-            (rel2.destination_type == rel1.destination_type,
-             rel2.source_type)
-        ], else_=rel2.destination_type).label('type'),
-        rel1.context_id if context_not_role else literal('R')
-    ).select_from(rel1)
+        atm_mapped_id.label('id'),
+        atm_mapped_type.label('type'),
+        person_to_assignable.context_id if context_not_role else literal('R'),
+    ).select_from(person_to_assignable)
 
   # First we fetch objects where a user is mapped as an assignee
   assigned_objects = assignable_join(db.session.query(
-      case([
-          (rel1.destination_type == "Person",
-           rel1.source_id)
-      ], else_=rel1.destination_id),
-      case([
-          (rel1.destination_type == "Person",
-           rel1.source_type)
-      ], else_=rel1.destination_type),
-      rel1.context_id if context_not_role else literal('RUD')))
+      pta_assignable_id.label('id'),
+      pta_assignable_type.label('type'),
+      person_to_assignable.context_id if context_not_role else literal('RUD'),
+  ))
 
   # The user should also have access to objects mapped to the assigned_objects
   # We accomplish this by filtering out relationships where the user is
@@ -123,27 +140,18 @@ def objects_via_assignable_query(user_id, context_not_role=True):
   # source was not performing well (8s+ query times)
   mapped_objects = assignable_join(
       # Join by destination:
-      related_assignables()).join(rel2, and_(
-          case([
-              (rel1.destination_type == "Person",
-               rel1.source_id)
-          ], else_=rel1.destination_id) == rel2.destination_id,
-          case([
-              (rel1.destination_type == "Person",
-               rel1.source_type)
-          ], else_=rel1.destination_type) == rel2.destination_type)
+      related_assignables()).join(assignable_to_mapped, and_(
+          pta_assignable_id == assignable_to_mapped.destination_id,
+          pta_assignable_type == assignable_to_mapped.destination_type,
+      )
   ).union(assignable_join(
       # Join by source:
-      related_assignables()).join(rel2, and_(
-          case([
-              (rel1.destination_type == "Person",
-               rel1.source_id)
-          ], else_=rel1.destination_id) == rel2.source_id,
-          case([
-              (rel1.destination_type == "Person",
-               rel1.source_type)
-          ], else_=rel1.destination_type) == rel2.source_type))
-  )
+      related_assignables()).join(assignable_to_mapped, and_(
+          pta_assignable_id == assignable_to_mapped.source_id,
+          pta_assignable_type == assignable_to_mapped.source_type,
+      )
+  ))
+
   return mapped_objects.union(assigned_objects)
 
 
