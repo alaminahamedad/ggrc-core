@@ -175,3 +175,106 @@ class TestValidateOnComplete(TestCase):
     self.assessment.status = self.assessment.FINAL_STATE
 
     self.assertEqual(self.assessment.status, self.assessment.FINAL_STATE)
+
+  def test_ready_for_completion_with_no_ca(self):
+    """Ready for completion with no CA restrictions."""
+    ready_for_completion = self.assessment.ready_for_completion
+
+    self.assertEqual(ready_for_completion["ready"], True)
+    self.assertFalse(ready_for_completion.get("invalid_attributes"))
+
+  def test_ready_for_completion_with_no_mandatory_ca(self):
+    """Ready for completion with no CA-introduced restrictions."""
+    CustomAttributeMock(self.assessment, attribute_type="Text")
+    CustomAttributeMock(self.assessment, attribute_type="Checkbox")
+    self.refresh(self.assessment)
+
+    ready_for_completion = self.assessment.ready_for_completion
+
+    self.assertEqual(ready_for_completion["ready"], True)
+    self.assertFalse(ready_for_completion.get("invalid_attributes"))
+
+  def test_ready_for_completion_with_mandatory_empty_ca(self):
+    """Not ready for completion if mandatory CA is empty."""
+    ca = CustomAttributeMock(self.assessment, mandatory=True)
+    self.refresh(self.assessment)
+
+    ready_for_completion = self.assessment.ready_for_completion
+
+    self.assertEqual(ready_for_completion["ready"], False)
+    self.assertEqual(ready_for_completion["invalid_attributes"],
+                     [{"id": ca.definition.id, "errors": ["value"]}])
+
+  def test_ready_for_completion_with_mandatory_filled_ca(self):
+    """Ready for completion if mandatory CA is filled."""
+    CustomAttributeMock(self.assessment, mandatory=True, value="Foo")
+    self.refresh(self.assessment)
+
+    ready_for_completion = self.assessment.ready_for_completion
+
+    self.assertEqual(ready_for_completion["ready"], True)
+    self.assertFalse(ready_for_completion.get("invalid_attributes"))
+
+  def test_ready_for_completion_with_mandatory_empty_global_ca(self):
+    """Not ready for completion if global mandatory CA is empty."""
+    ca = CustomAttributeMock(self.assessment, mandatory=True, global_=True)
+    self.refresh(self.assessment)
+
+    ready_for_completion = self.assessment.ready_for_completion
+
+    self.assertEqual(ready_for_completion["ready"], False)
+    self.assertEqual(ready_for_completion["invalid_attributes"],
+                     [{"id": ca.definition.id, "errors": ["value"]}])
+
+  def test_ready_for_completion_with_mandatory_filled_global_ca(self):
+    """Ready for completion if global mandatory CA is filled."""
+    CustomAttributeMock(self.assessment, mandatory=True, global_=True,
+                        value="Foo")
+    self.refresh(self.assessment)
+
+    ready_for_completion = self.assessment.ready_for_completion
+
+    self.assertEqual(ready_for_completion["ready"], True)
+    self.assertFalse(ready_for_completion.get("invalid_attributes"))
+
+  def test_ready_for_completion_with_missing_mandatory_comment(self):
+    """Not ready for completion if comment required by CA is missing."""
+    ca = CustomAttributeMock(
+        self.assessment,
+        attribute_type="Dropdown",
+        dropdown_parameters=("foo,comment_required", "0,1"),
+        value="comment_required",
+    )
+    self.refresh(self.assessment)
+
+    ready_for_completion = self.assessment.ready_for_completion
+
+    self.assertEqual(ready_for_completion["ready"], False)
+    self.assertEqual(ready_for_completion["invalid_attributes"],
+                     [{"id": ca.definition.id, "errors": ["comment"]}])
+
+  def test_ready_for_completion_with_present_mandatory_comment(self):
+    """Ready for completion if comment required by CA is present."""
+    ca = CustomAttributeMock(
+        self.assessment,
+        attribute_type="Dropdown",
+        dropdown_parameters=("foo,comment_required", "0,1"),
+        value="comment_required",
+    )
+    _, comment = GENERATOR.generate_comment(
+        commentable=self.assessment,
+        assignee_type="Assessor",
+        description="Mandatory comment",
+        custom_attribute_revision_upd={
+            "custom_attribute_value": {
+                "id": ca.value.id,
+            },
+        },
+    )
+    GENERATOR.generate_relationship(self.assessment, comment)
+    self.refresh(self.assessment)
+
+    ready_for_completion = self.assessment.ready_for_completion
+
+    self.assertEqual(ready_for_completion["ready"], True)
+    self.assertFalse(ready_for_completion.get("invalid_attributes"))
