@@ -1,144 +1,87 @@
 # Copyright (C) 2016 Google Inc.
 # Licensed under http://www.apache.org/licenses/LICENSE-2.0 <see LICENSE file>
 
-"""This module contains logic to handle '/query' endpoint."""
+"""This module contains special query helper class for query API."""
 
 from datetime import datetime
-import time
-from wsgiref.handlers import format_date_time
-
-from flask import request
-from flask import current_app
-from werkzeug.exceptions import BadRequest
 
 from ggrc.builder import json
 from ggrc.converters.query_helper import QueryHelper
-from ggrc.login import login_required
-from ggrc.models.inflector import get_model
-from ggrc.services.common import etag
-from ggrc.utils import as_json
 
 
-def build_collection_representation(model, **kwargs):
-  """Enclose `kwargs` collection description into a type-describing block."""
-  # pylint: disable=protected-access
-  collection = {
-      model.__name__: kwargs,
-      "selfLink": None,  # not implemented yet
-  }
-  return collection
+class QueryAPIQueryHelper(QueryHelper):
+  """Helper class for handling request queries for query API.
 
-
-def get_last_modified(model, objects):
-  """Get last object update time for Last-Modified header."""
-  if hasattr(model, 'updated_at') and objects:
-    last_modified = max(obj.updated_at for obj in objects)
-  else:
-    last_modified = None
-  return last_modified
-
-
-def json_success_response(response_object, last_modified=None, status=200):
-  """Build a 200-response with metadata headers."""
-  if last_modified is None:
-    last_modified = datetime.now()
-  headers = [
-      ('Last-Modified', http_timestamp(last_modified)),
-      ('Etag', etag(response_object)),
-      ('Content-Type', 'application/json'),
+  query object = [
+    {
+      # the same parameters as in QueryHelper
+      query_type: "values", "ids" or "count" - the type of results requested
+      fields: [ a list of fields to include in JSON if query_type is "values" ]
+    }
   ]
-  return current_app.make_response(
-      (as_json(response_object), status, headers),
-  )
 
+  After the query is done (by `get_results` method), the results are appended
+  to each query object:
 
-def http_timestamp(timestamp):
-  return format_date_time(time.mktime(timestamp.utctimetuple()))
+  query object with results = [
+    {
+      # the same fields as in QueryHelper
+      values: [ filtered objects in JSON ] (present if query_type is "values")
+      ids: [ ids of filtered objects ] (present if query_type is "ids")
+      count: the number of objects filtered, after "limit" is applied
+      total: the number of objects filtered, before "limit" is applied
+  """
+  def get_results(self):
+    """Filter the objects and get their information.
 
+    Updates self.query items with their results. The type of results required
+    is read from "type" parameter of every object_query in self.query.
 
-def get_objects_by_query():
-  """Return objects corresponding to a POST'ed query list."""
-  request_json = request.json
+    Returns:
+      list of dicts: same query as the input with requested results that match
+                     the filter.
+    """
+    for object_query in self.query:
+      query_type = object_query.get("type", "values")
+      if query_type not in {"values", "ids", "count"}:
+        raise NotImplementedError("Only 'values', 'ids' and 'count' queries "
+                                  "are supported now")
+      model = self.object_map[object_query["object_name"]]
+      objects = self._get_objects(object_query)
+      object_query["total"] = len(objects)
 
-  results, last_modified_list = zip(*(_process_single_query(query_object)
-                                      for query_object in request_json))
+      objects = self._apply_order_by_and_limit(
+          objects,
+          order_by=object_query.get("order_by"),
+          limit=object_query.get("limit"),
+      )
+      object_query["count"] = len(objects)
+      object_query["last_modified"] = self._get_last_modified(model, objects)
+      if query_type == "values":
+        object_query["values"] = self._transform_to_json(
+            objects,
+            object_query.get("fields"),
+        )
+      if query_type == "ids":
+        object_query["ids"] = [o.id for o in objects]
+    return self.query
 
-  if None in last_modified_list:
-    last_modified = None
-  else:
-    last_modified = max(last_modified_list)
-
-  return json_success_response(results, last_modified)
-
-
-def _process_single_query(query_object):
-  """Get results for a single query."""
-  # valid types should be: 'values', 'ids', 'count'
-  query_type = query_object.get('type', 'values')
-  object_type = query_object.get('object_name')
-  query_helper = QueryHelper([query_object])
-
-  last_modified = None
-
-  if query_type == 'values':
-    result = query_helper.get(values=True, total=True)[0]
-    object_type = result['object_name']
-    total = result['total']
-    objects = result['values']
-
-    model = get_model(object_type)
+  @staticmethod
+  def _transform_to_json(objects, fields=None):
+    """Make a JSON representation of objects from the list."""
     objects_json = [json.publish(obj) for obj in objects]
     objects_json = json.publish_representation(objects_json)
-
-    if result.get('fields'):
-      objects_json = [{f: o.get(f) for f in result['fields']}
+    if fields:
+      objects_json = [{f: o.get(f) for f in fields}
                       for o in objects_json]
-    collection = build_collection_representation(
-        model,
-        values=objects_json,
-        count=len(objects_json),
-        total=total,
-    )
-    last_modified = get_last_modified(model, objects)
-  elif query_type == 'ids':
-    result = query_helper.get(ids=True, total=True)[0]
-    object_type = result['object_name']
-    total = result['total']
-    ids = result['ids']
+    return objects_json
 
-    model = get_model(object_type)
-    collection = build_collection_representation(
-        model,
-        ids=ids,
-        count=len(ids),
-        total=total,
-    )
-  elif query_type == 'count':
-    result = query_helper.get(ids=True, total=True)[0]
-    object_type = result['object_name']
-    total = result['total']
-    count = len(result['ids'])
-
-    model = get_model(object_type)
-    collection = build_collection_representation(
-        model,
-        count=count,
-        total=total,
-    )
-  else:
-    raise NotImplementedError("Only 'values', 'ids' and 'count' queries "
-                              "are supported now")
-
-  return collection, last_modified
-
-
-def init_query_view(app):
-  # pylint: disable=unused-variable
-  @app.route('/query', methods=['POST'])
-  @login_required
-  def query_objects():
-    """Advanced object collection queries view."""
-    try:
-      return get_objects_by_query()
-    except NotImplementedError as exc:
-      raise BadRequest(exc.message)
+  @staticmethod
+  def _get_last_modified(model, objects):
+    """Get the time of last update of an object in the list."""
+    if not objects:
+      return None
+    elif hasattr(model, "updated_at"):
+      return max(obj.updated_at for obj in objects)
+    else:
+      return datetime.now()

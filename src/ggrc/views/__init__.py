@@ -35,7 +35,7 @@ from ggrc.models.reflection import AttributeInfo
 from ggrc.rbac import permissions
 from ggrc.services.common import as_json
 from ggrc.services.common import inclusion_filter
-from ggrc.services import query_helper
+from ggrc.services import query as services_query
 from ggrc.views import converters
 from ggrc.views import cron
 from ggrc.views import filters
@@ -346,7 +346,7 @@ def init_extra_views(app_):
   converters.init_converter_views()
   cron.init_cron_views(app_)
   notifications.init_notification_views(app_)
-  query_helper.init_query_view(app_)
+  services_query.init_query_view(app_)
 
 
 def init_all_views(app_):

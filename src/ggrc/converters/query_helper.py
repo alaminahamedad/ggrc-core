@@ -24,9 +24,9 @@ class QueryHelper(object):
 
   """Helper class for handling request queries
 
-  Primary use for this class is to get list of objects or object ids for each
-  object type defined in the query. All objects must pass the query filters
-  if they are defined.
+  Primary use for this class is to get list of object ids for each object type
+  defined in the query. All objects must pass the query filters if they are
+  defined.
 
   query object = [
     {
@@ -61,17 +61,14 @@ class QueryHelper(object):
     }
   ]
 
-  After the query is done (typically by `get` method), the results are appended
-  to each query object:
+  After the query is done (by `get_ids` method), the results are appended to
+  each query object:
 
   query object with results = [
     {
       object_name: search class name,
       (all other object query fields)
-      "count": the number of items returned
-      "total": the number of items filtered before applying "limit"
-      "ids": [ list of filtered objects ids ]
-      "values": [ list of filtered objects themselves ]
+      ids: [ list of filtered objects ids ]
     }
   ]
 
@@ -221,39 +218,14 @@ class QueryHelper(object):
     Returns:
       list of dicts: same query as the input with all ids that match the filter
     """
-    return self.get(ids=True)
-
-  def get(self, ids=False, total=False, values=False):
-    """Filter the objects and get their information.
-
-    Updates self.query items with their results.
-
-    Args:
-      ids: if True, provide ids of the filtered objects under ["ids"];
-      total: if True, provide the total number of the filtered objects
-             before "limit" is applied under ["total"];
-      values: if True, provide the filtered objects themselves under ["values"].
-
-    Returns:
-      list of dicts: same query as the input with requested results that match
-                     the filter.
-    """
-    if not (ids or total or values):
-      # no additional info requested, no action required
-      return self.query
     for object_query in self.query:
       objects = self._get_objects(object_query)
-      if total:
-        object_query["total"] = len(objects)
       objects = self._apply_order_by_and_limit(
           objects,
           order_by=object_query.get("order_by"),
           limit=object_query.get("limit"),
       )
-      if values:
-        object_query["values"] = objects
-      if ids:
-        object_query["ids"] = [o.id for o in objects]
+      object_query["ids"] = [o.id for o in objects]
     return self.query
 
   def _get_objects(self, object_query):
