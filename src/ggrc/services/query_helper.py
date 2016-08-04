@@ -9,6 +9,8 @@ from ggrc.builder import json
 from ggrc.converters.query_helper import QueryHelper
 
 
+# pylint: disable=too-few-public-methods
+
 class QueryAPIQueryHelper(QueryHelper):
   """Helper class for handling request queries for query API.
 
