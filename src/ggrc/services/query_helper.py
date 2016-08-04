@@ -52,9 +52,8 @@ class QueryAPIQueryHelper(QueryHelper):
       objects = self._get_objects(object_query)
       object_query["total"] = len(objects)
 
-      objects = self._apply_order_by_and_limit(
+      objects = self._apply_limit(
           objects,
-          order_by=object_query.get("order_by"),
           limit=object_query.get("limit"),
       )
       object_query["count"] = len(objects)
