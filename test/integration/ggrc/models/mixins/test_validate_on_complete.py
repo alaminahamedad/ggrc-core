@@ -18,7 +18,7 @@ class CustomAttributeMock(object):
   """Defines CustomAttributeDefinition and CustomAttributeValue objects"""
 
   # pylint: disable=too-many-arguments
-  def __init__(self, attributable, attribute_type='Text', mandatory=False,
+  def __init__(self, attributable, attribute_type="Text", mandatory=False,
                dropdown_parameters=None, global_=False, value=None):
     self.attributable = attributable
     self.attribute_type = attribute_type
@@ -67,7 +67,7 @@ class TestValidateOnComplete(TestCase):
     _, assessment = GENERATOR.generate_object(
         Assessment,
         data={
-            'status': Assessment.PROGRESS_STATE,
+            "status": Assessment.PROGRESS_STATE,
         },
     )
     return assessment
@@ -89,8 +89,8 @@ class TestValidateOnComplete(TestCase):
 
   def test_validates_with_no_mandatory_ca(self):
     """Validation ok with no CA-introduced restrictions."""
-    CustomAttributeMock(self.assessment, attribute_type='Text')
-    CustomAttributeMock(self.assessment, attribute_type='Checkbox')
+    CustomAttributeMock(self.assessment, attribute_type="Text")
+    CustomAttributeMock(self.assessment, attribute_type="Checkbox")
     self.refresh(self.assessment)
 
     self.assessment.status = self.assessment.FINAL_STATE
@@ -109,7 +109,7 @@ class TestValidateOnComplete(TestCase):
 
   def test_validates_with_mandatory_filled_ca(self):
     """Validation ok if mandatory CA is filled."""
-    CustomAttributeMock(self.assessment, mandatory=True, value='Foo')
+    CustomAttributeMock(self.assessment, mandatory=True, value="Foo")
     self.refresh(self.assessment)
 
     self.assessment.status = self.assessment.FINAL_STATE
@@ -129,7 +129,7 @@ class TestValidateOnComplete(TestCase):
   def test_validates_with_mandatory_filled_global_ca(self):
     """Validation ok if global mandatory CA is filled."""
     CustomAttributeMock(self.assessment, mandatory=True, global_=True,
-                        value='Foo')
+                        value="Foo")
     self.refresh(self.assessment)
 
     self.assessment.status = self.assessment.FINAL_STATE
@@ -140,9 +140,9 @@ class TestValidateOnComplete(TestCase):
     """Validation fails if comment required by CA is missing."""
     CustomAttributeMock(
         self.assessment,
-        attribute_type='Dropdown',
-        dropdown_parameters=('foo,comment_required', '0,1'),
-        value='comment_required',
+        attribute_type="Dropdown",
+        dropdown_parameters=("foo,comment_required", "0,1"),
+        value="comment_required",
     )
     self.refresh(self.assessment)
 
@@ -155,17 +155,17 @@ class TestValidateOnComplete(TestCase):
     """Validation ok if comment required by CA is present."""
     ca = CustomAttributeMock(
         self.assessment,
-        attribute_type='Dropdown',
-        dropdown_parameters=('foo,comment_required', '0,1'),
-        value='comment_required',
+        attribute_type="Dropdown",
+        dropdown_parameters=("foo,comment_required", "0,1"),
+        value="comment_required",
     )
     _, comment = GENERATOR.generate_comment(
         commentable=self.assessment,
-        assignee_type='Assessor',
-        description='Mandatory comment',
+        assignee_type="Assessor",
+        description="Mandatory comment",
         custom_attribute_revision_upd={
-            'custom_attribute_value': {
-                'id': ca.value.id,
+            "custom_attribute_value": {
+                "id": ca.value.id,
             },
         },
     )

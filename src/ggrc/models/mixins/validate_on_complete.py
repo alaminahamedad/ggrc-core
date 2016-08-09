@@ -32,12 +32,12 @@ class ValidateOnComplete(object):
     """Comments related to self via Relationship table."""
     from ggrc.models.relationship import Relationship
     comment_id = case(
-        [(Relationship.destination_type == 'Comment',
+        [(Relationship.destination_type == "Comment",
           Relationship.destination_id)],
         else_=Relationship.source_id,
     )
     commentable_id = case(
-        [(Relationship.destination_type == 'Comment',
+        [(Relationship.destination_type == "Comment",
           Relationship.source_id)],
         else_=Relationship.destination_id,
     )
@@ -55,8 +55,8 @@ class ValidateOnComplete(object):
     """Special query to fetch all required fields."""
     query = super(ValidateOnComplete, cls).eager_query()
     return query.options(
-        orm.subqueryload('_related_comments')
-           .joinedload('revision'),
+        orm.subqueryload("_related_comments")
+           .joinedload("revision"),
     )
 
   def _get_custom_attributes_comments(self):
@@ -77,7 +77,7 @@ class ValidateOnComplete(object):
                               Flags.evidence_required correspond to the values
                               from multi_choice_mandatory bitmasks
     """
-    flags = namedtuple('Flags', ['comment_required', 'evidence_required'])
+    flags = namedtuple("Flags", ["comment_required", "evidence_required"])
 
     def make_flags(multi_choice_mandatory):
       flags_mask = int(multi_choice_mandatory)
@@ -92,12 +92,12 @@ class ValidateOnComplete(object):
       return {}
     else:
       return dict(zip(
-          cad.multi_choice_options.split(','),
+          cad.multi_choice_options.split(","),
           (make_flags(mask)
-           for mask in cad.multi_choice_mandatory.split(',')),
+           for mask in cad.multi_choice_mandatory.split(",")),
       ))
 
-  @validates('status')
+  @validates("status")
   def validate_status(self, key, value):
     """Check that mandatory fields and CAs are filled in.
 
@@ -117,7 +117,7 @@ class ValidateOnComplete(object):
                                     for cav in self.custom_attribute_values}
       self._ca_comment_map = {
           int(comment.revision
-              .content['custom_attribute_id']): comment
+              .content["custom_attribute_id"]): comment
           for comment in comments
       }
       for cad in self.custom_attribute_definitions:
@@ -132,7 +132,7 @@ class ValidateOnComplete(object):
           errors += self._check_dropdown_requirements(cad, cav)
 
       if errors:
-        raise ValidationError('. '.join(errors))
+        raise ValidationError(". ".join(errors))
 
     return value
 
@@ -140,7 +140,7 @@ class ValidateOnComplete(object):
   def _check_mandatory_value(cad, cav):
     if cad.mandatory and (not cav or not cav.attribute_value):
       return [
-          'Value for definition #{cad.id} is missing or empty'
+          "Value for definition #{cad.id} is missing or empty"
           .format(cad=cad),
       ]
     else:
