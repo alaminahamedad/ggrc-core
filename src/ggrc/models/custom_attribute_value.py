@@ -3,10 +3,14 @@
 
 """Custom attribute value model"""
 
+from collections import namedtuple
+
 from sqlalchemy import or_
 
 from ggrc import db
+from ggrc.models.computed_property import computed_property
 from ggrc.models.mixins import Base
+from ggrc.models.reflection import PublishOnly
 
 
 class CustomAttributeValue(Base, db.Model):
@@ -38,7 +42,7 @@ class CustomAttributeValue(Base, db.Model):
 
   @property
   def attributable_attr(self):
-    return '{0}_attributable'.format(self.attributable_type)
+    return '{0}_custom_attributable'.format(self.attributable_type)
 
   @property
   def attributable(self):
@@ -57,6 +61,7 @@ class CustomAttributeValue(Base, db.Model):
       'attributable_type',
       'attribute_value',
       'attribute_object',
+      PublishOnly('preconditions_failed'),
   ]
 
   @property
@@ -209,3 +214,101 @@ class CustomAttributeValue(Base, db.Model):
     validator = self._validator_map.get(self.custom_attribute.attribute_type)
     if validator:
       validator(self)
+
+  @computed_property
+  def is_empty(self):
+    """Return True if the CAV is empty or holds a logically empty value."""
+    from ggrc.models.custom_attribute_definition import (
+        CustomAttributeDefinition)
+    # The CAV is considered empty when:
+    # - the value is empty
+    if not self.attribute_value:
+      return True
+    # - the type is Checkbox and the value is 0
+    if (self.custom_attribute.attribute_type ==
+            CustomAttributeDefinition.ValidTypes.CHECKBOX and
+            str(self.attribute_value) == "0"):
+      return True
+    # - the type is a mapping and the object value id is empty
+    if (self.attribute_object_type is not None and
+            not self.attribute_object_id):
+      return True
+    # Otherwise it the CAV is not empty
+    return False
+
+  @computed_property
+  def preconditions_failed(self):
+    from ggrc.models.custom_attribute_definition import (
+        CustomAttributeDefinition)
+    failed_preconditions = []
+    if self.custom_attribute.mandatory and self.is_empty:
+      failed_preconditions += ["value"]
+    if (self.custom_attribute.attribute_type ==
+            CustomAttributeDefinition.ValidTypes.DROPDOWN):
+      failed_preconditions += self._check_dropdown_requirements()
+    return failed_preconditions
+
+  def _check_dropdown_requirements(self):
+    failed_preconditions = []
+    options_to_flags = self._multi_choice_options_to_flags(
+        self.custom_attribute,
+    )
+    flags = options_to_flags.get(self.attribute_value)
+    if flags:
+      if flags.comment_required:
+        failed_preconditions += self._check_mandatory_comment()
+      if flags.evidence_required:
+        failed_preconditions += self._check_mandatory_evidence()
+    return failed_preconditions
+
+  def _check_mandatory_comment(self):
+    comment_found = any(
+        self.custom_attribute_id == comment.custom_attribute_definition_id and
+        self.id == comment.revision.resource_id and
+        self.__class__.__name__ == comment.revision.resource_type
+        for comment in self.attributable.comments
+    )
+    if not comment_found:
+      return ["comment"]
+    else:
+      return []
+
+  def _check_mandatory_evidence(self):
+    # pylint: disable=no-self-use
+    # not implemented yet
+    return []
+
+  @staticmethod
+  def _multi_choice_options_to_flags(cad):
+    """Parse mandatory comment and evidence flags from dropdown CA definition.
+
+    Args:
+      cad - a CA definition object
+
+    Returns:
+      {option_value: Flags} - a dict from dropdown options values to Flags
+                              objects where Flags.comment_required and
+                              Flags.evidence_required correspond to the values
+                              from multi_choice_mandatory bitmasks
+    """
+    from ggrc.models.custom_attribute_definition import (
+        CustomAttributeDefinition)
+    flags = namedtuple("Flags", ["comment_required", "evidence_required"])
+
+    def make_flags(multi_choice_mandatory):
+      flags_mask = int(multi_choice_mandatory)
+      return flags(comment_required=flags_mask & (CustomAttributeDefinition
+                                                  .MultiChoiceMandatoryFlags
+                                                  .COMMENT_REQUIRED),
+                   evidence_required=flags_mask & (CustomAttributeDefinition
+                                                   .MultiChoiceMandatoryFlags
+                                                   .EVIDENCE_REQUIRED))
+
+    if not cad.multi_choice_options or not cad.multi_choice_mandatory:
+      return {}
+    else:
+      return dict(zip(
+          cad.multi_choice_options.split(","),
+          (make_flags(mask)
+           for mask in cad.multi_choice_mandatory.split(",")),
+      ))

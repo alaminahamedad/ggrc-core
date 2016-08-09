@@ -3,7 +3,9 @@
 
 """Module containing comment model and comment related mixins."""
 
+from sqlalchemy import case
 from sqlalchemy import orm
+from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import validates
 
 from ggrc import db
@@ -74,6 +76,29 @@ class Commentable(object):
       "recipients": "Recipients",
       "send_by_default": "Send by default",
   }
+
+  @declared_attr
+  def comments(self):
+    """Comments related to self via Relationship table."""
+    from ggrc.models.relationship import Relationship
+    comment_id = case(
+        [(Relationship.destination_type == "Comment",
+          Relationship.destination_id)],
+        else_=Relationship.source_id,
+    )
+    commentable_id = case(
+        [(Relationship.destination_type == "Comment",
+          Relationship.source_id)],
+        else_=Relationship.destination_id,
+    )
+
+    return db.relationship(
+        Comment,
+        primaryjoin=lambda: self.id == commentable_id,
+        secondary=Relationship.__table__,
+        secondaryjoin=lambda: Comment.id == comment_id,
+        viewonly=True,
+    )
 
 
 class Comment(Relatable, Described, Documentable, Ownable, Base, db.Model):

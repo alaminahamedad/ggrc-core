@@ -17,13 +17,18 @@ from werkzeug.exceptions import BadRequest
 
 from ggrc import db
 from ggrc import utils
+from ggrc.models.computed_property import computed_property
 from ggrc.models.reflection import AttributeInfo
 
 
 class CustomAttributable(object):
   """Custom Attributable mixin."""
 
-  _publish_attrs = ['custom_attribute_values', 'custom_attribute_definitions']
+  _publish_attrs = [
+      'custom_attribute_values',
+      'custom_attribute_definitions',
+      'preconditions_failed',
+  ]
   _update_attrs = ['custom_attribute_values', 'custom_attributes']
   _include_links = ['custom_attribute_values', 'custom_attribute_definitions']
   _update_raw = ['custom_attribute_values']
@@ -349,6 +354,7 @@ class CustomAttributable(object):
            .undefer_group('CustomAttributeDefinition_complete'),
         orm.subqueryload('_custom_attribute_values')
            .undefer_group('CustomAttributeValue_complete'),
+        orm.subqueryload('comments'),
     )
 
   def log_json(self):
@@ -386,3 +392,18 @@ class CustomAttributable(object):
       if not value.custom_attribute and value.custom_attribute_id:
         value.custom_attribute = map_.get(int(value.custom_attribute_id))
       value.validate()
+
+  @computed_property
+  def preconditions_failed(self):
+    values_map = {
+        cav.custom_attribute_id or cav.custom_attribute.id: cav
+        for cav in self.custom_attribute_values
+    }
+    for cad in self.custom_attribute_definitions:
+      if cad.mandatory:
+        cav = values_map.get(cad.id)
+        if not cav or not cav.attribute_value:
+          return True
+
+    return any(cav.preconditions_failed
+               for cav in self.custom_attribute_values)
