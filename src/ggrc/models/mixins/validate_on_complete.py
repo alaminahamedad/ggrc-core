@@ -7,6 +7,7 @@ This defines a procedure of an object's validation when its status moves from
 one of NOT_DONE_STATES to DONE_STATES.
 """
 
+from collections import defaultdict
 from collections import namedtuple
 
 from sqlalchemy import case
@@ -16,8 +17,26 @@ from sqlalchemy.orm import validates
 
 from ggrc import db
 from ggrc.models.comment import Comment
+from ggrc.models.computed_property import computed_property
 from ggrc.models.custom_attribute_definition import CustomAttributeDefinition
 from ggrc.models.exceptions import ValidationError
+from ggrc.models.reflection import PublishOnly
+
+
+class RequirementError(namedtuple("RequirementError", ["cad", "cav",
+                                                       "requirement"])):
+  def __str__(self):
+    if self.requirement == "comment":
+      return ("Comment required by '{cad.title}' on value "
+              "'{cav.attribute_value}'".format(cad=self.cad, cav=self.cav))
+    elif self.requirement == "evidence":
+      return ("Evidence required by '{cad.title}' on value "
+              "'{cav.attribute_value}'".format(cad=self.cad, cav=self.cav))
+    elif self.requirement == "value":
+      return ("Value for definition '{cad.title}' is missing"
+              .format(cad=self.cad))
+    else:
+      raise ValueError("Invalid 'requirement': {}".format(self.requirement))
 
 
 class ValidateOnComplete(object):
@@ -26,6 +45,38 @@ class ValidateOnComplete(object):
   Requires Stateful and Statusable to be mixed in as well."""
 
   # pylint: disable=too-few-public-methods
+
+  # REST properties
+  _publish_attrs = [
+      PublishOnly("ready_for_completion"),
+  ]
+
+  @computed_property
+  def ready_for_completion(self):
+    """Check that self is ready to move to "Complete".
+
+    Returns:
+      {"ready": bool, - True if self can be completed, False otherwise
+       "invalid_attributes": [{ - lists every CA which blocks completion
+            "id": cad.id, - id of a CA which blocks completion
+            "errors": [str], - reasons why this CA blocks completion
+       }]}
+      Possible errors are "value" (missing mandatory CA value), "comment"
+        (missing mandatory comment), "evidence" (missing mandatory evidence).
+    """
+    def get_invalid_attributes(errors):
+      """Transform error list to cad.id -> relevant error list dict."""
+      invalid_attributes = defaultdict(lambda: defaultdict(list))
+      for error in errors:
+        invalid_attributes[error.cad]["errors"].append(error.requirement)
+      return [{"id": cad.id, "errors": val["errors"]}
+              for cad, val in invalid_attributes.iteritems()]
+
+    errors = self._get_unsatisfied_requirements()
+    return {
+        "ready": not errors,
+        "invalid_attributes": get_invalid_attributes(errors),
+    }
 
   @declared_attr
   def _related_comments(self):
@@ -107,42 +158,44 @@ class ValidateOnComplete(object):
     if hasattr(super(ValidateOnComplete, self), "validate_status"):
       value = super(ValidateOnComplete, self).validate_status(key, value)
 
-    # pylint: disable=attribute-defined-outside-init ; it's a mixin
-
     if self.status in self.NOT_DONE_STATES and value in self.DONE_STATES:
-      # CA checks
-      errors = []
-      comments = self._get_custom_attributes_comments()
-      self._definition_value_map = {int(cav.custom_attribute_id): cav
-                                    for cav in self.custom_attribute_values}
-      self._ca_comment_map = {
-          int(comment.revision
-              .content["custom_attribute_id"]): comment
-          for comment in comments
-      }
-      for cad in self.custom_attribute_definitions:
-        # find the value for this definition
-        cav = self._definition_value_map.get(cad.id)
-
-        # check mandatory values
-        errors += self._check_mandatory_value(cad, cav)
-
-        # check relevant comments and attachments
-        if cad.attribute_type == CustomAttributeDefinition.ValidTypes.DROPDOWN:
-          errors += self._check_dropdown_requirements(cad, cav)
+      errors = self._get_unsatisfied_requirements()
 
       if errors:
-        raise ValidationError(". ".join(errors))
+        raise ValidationError(". ".join(str(error) for error in errors))
 
     return value
+
+  def _get_unsatisfied_requirements(self):
+    """Get any missing mandatory CAs, comments and evidences."""
+    # pylint: disable=attribute-defined-outside-init ; it's a mixin
+
+    errors = []
+    comments = self._get_custom_attributes_comments()
+    self._definition_value_map = {int(cav.custom_attribute_id): cav
+                                  for cav in self.custom_attribute_values}
+    self._ca_comment_map = {
+        int(comment.revision
+            .content["custom_attribute_id"]): comment
+        for comment in comments
+    }
+    for cad in self.custom_attribute_definitions:
+      # find the value for this definition
+      cav = self._definition_value_map.get(cad.id)
+
+      # check mandatory values
+      errors += self._check_mandatory_value(cad, cav)
+
+      # check relevant comments and attachments
+      if cad.attribute_type == CustomAttributeDefinition.ValidTypes.DROPDOWN:
+        errors += self._check_dropdown_requirements(cad, cav)
+
+    return errors
 
   @staticmethod
   def _check_mandatory_value(cad, cav):
     if cad.mandatory and (not cav or not cav.attribute_value):
-      return [
-          "Value for definition #{cad.id} is missing or empty"
-          .format(cad=cad),
-      ]
+      return [RequirementError(cad=cad, cav=cav, requirement="value")]
     else:
       return []
 
@@ -164,11 +217,7 @@ class ValidateOnComplete(object):
   def _check_mandatory_comment(self, cad, cav):
     """Check mandatory comment for the CA value."""
     if not self._ca_comment_map.get(cad.id):
-      return [
-          "Comment required by {cad.id} on "
-          "value '{cav.attribute_value}'"
-          .format(cad=cad, cav=cav),
-      ]
+      return [RequirementError(cad=cad, cav=cav, requirement="comment")]
     else:
       return []
 
