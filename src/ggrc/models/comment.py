@@ -98,6 +98,7 @@ class Comment(Relatable, Described, Documentable, Ownable, Base, db.Model):
   custom_attribute_definition = db.relationship(
       'CustomAttributeDefinition',
       uselist=False,
+      backref='associated_comments',
   )
 
   # REST properties

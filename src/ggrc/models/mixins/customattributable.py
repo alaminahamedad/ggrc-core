@@ -26,7 +26,12 @@ class CustomAttributable(object):
   _publish_attrs = ['custom_attribute_values', 'custom_attribute_definitions']
   _update_attrs = ['custom_attribute_values', 'custom_attributes']
   _include_links = ['custom_attribute_values', 'custom_attribute_definitions']
+  _publish_raw = ['custom_attribute_values']
   _update_raw = ['custom_attribute_values']
+  # the json builder should take the value of custom_attribute_values_json
+  # field and store it under custom_attribute_values json key
+  _publish_aliases = {'custom_attribute_values_json':
+                      'custom_attribute_values'}
 
   @declared_attr
   def custom_attribute_definitions(self):
@@ -94,6 +99,39 @@ class CustomAttributable(object):
   @hybrid_property
   def custom_attribute_values(self):
     return self._custom_attribute_values
+
+  @property
+  def custom_attribute_values_json(self):
+    from ggrc.builder import json
+
+    if not hasattr(self, "preconditions_failed"):
+      # just a CustomAttributable, no CA validation data
+      return [json.publish(cav) for cav in self._custom_attribute_values]
+    else:
+      # get CA validation data and integrate it with CAVal list
+      preconditions_failed = self.preconditions_failed
+      definition_value_map = dict.fromkeys(cad.id for cad in
+                                           self.custom_attribute_definitions)
+      for cav in self._custom_attribute_values:
+        definition_value_map[cav.custom_attribute_id] = cav
+
+      result = []
+      for cad_id, cav in definition_value_map.iteritems():
+        if cav is None:
+          # generate a placeholder value
+          cav_description = {
+              "custom_attribute_id": cad_id,
+              "id": None,
+              "type": "CustomAttributeValue",
+              "preconditions_failed": preconditions_failed[cad_id],
+          }
+        else:
+          cav_description = json.publish(cav)
+          cav_description.update({
+              "preconditions_failed": preconditions_failed[cad_id],
+          })
+        result.append(cav_description)
+      return result
 
   @custom_attribute_values.setter
   def custom_attribute_values(self, values):

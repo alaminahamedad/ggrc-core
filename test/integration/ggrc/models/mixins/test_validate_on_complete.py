@@ -176,69 +176,63 @@ class TestValidateOnComplete(TestCase):
 
     self.assertEqual(self.assessment.status, self.assessment.FINAL_STATE)
 
-  def test_ready_for_completion_with_no_ca(self):
-    """Ready for completion with no CA restrictions."""
-    ready_for_completion = self.assessment.ready_for_completion
+  def test_preconditions_failed_with_no_ca(self):
+    """No preconditions failed with no CA restrictions."""
+    preconditions_failed = self.assessment.preconditions_failed
 
-    self.assertEqual(ready_for_completion["ready"], True)
-    self.assertFalse(ready_for_completion.get("invalid_attributes"))
+    self.assertFalse(preconditions_failed)
 
-  def test_ready_for_completion_with_no_mandatory_ca(self):
-    """Ready for completion with no CA-introduced restrictions."""
+  def test_preconditions_failed_with_no_mandatory_ca(self):
+    """No preconditions failed with no CA-introduced restrictions."""
     CustomAttributeMock(self.assessment, attribute_type="Text")
     CustomAttributeMock(self.assessment, attribute_type="Checkbox")
     self.refresh(self.assessment)
 
-    ready_for_completion = self.assessment.ready_for_completion
+    preconditions_failed = self.assessment.preconditions_failed
 
-    self.assertEqual(ready_for_completion["ready"], True)
-    self.assertFalse(ready_for_completion.get("invalid_attributes"))
+    self.assertFalse(preconditions_failed)
 
-  def test_ready_for_completion_with_mandatory_empty_ca(self):
-    """Not ready for completion if mandatory CA is empty."""
+  def test_preconditions_failed_with_mandatory_empty_ca(self):
+    """Some preconditions failed if mandatory CA is empty."""
     ca = CustomAttributeMock(self.assessment, mandatory=True)
     self.refresh(self.assessment)
 
-    ready_for_completion = self.assessment.ready_for_completion
+    preconditions_failed = self.assessment.preconditions_failed
 
-    self.assertEqual(ready_for_completion["ready"], False)
-    self.assertEqual(ready_for_completion["invalid_attributes"],
-                     [{"id": ca.definition.id, "errors": ["value"]}])
+    self.assertEqual(preconditions_failed,
+                     {ca.definition.id: ["value"]})
 
-  def test_ready_for_completion_with_mandatory_filled_ca(self):
-    """Ready for completion if mandatory CA is filled."""
+  def test_preconditions_failed_with_mandatory_filled_ca(self):
+    """No preconditions failed if mandatory CA is filled."""
     CustomAttributeMock(self.assessment, mandatory=True, value="Foo")
     self.refresh(self.assessment)
 
-    ready_for_completion = self.assessment.ready_for_completion
+    preconditions_failed = self.assessment.preconditions_failed
 
-    self.assertEqual(ready_for_completion["ready"], True)
-    self.assertFalse(ready_for_completion.get("invalid_attributes"))
+    self.assertFalse(preconditions_failed)
 
-  def test_ready_for_completion_with_mandatory_empty_global_ca(self):
-    """Not ready for completion if global mandatory CA is empty."""
+  def test_preconditions_failed_with_mandatory_empty_global_ca(self):
+    """Some preconditions failed if global mandatory CA is empty."""
     ca = CustomAttributeMock(self.assessment, mandatory=True, global_=True)
     self.refresh(self.assessment)
 
-    ready_for_completion = self.assessment.ready_for_completion
+    preconditions_failed = self.assessment.preconditions_failed
 
-    self.assertEqual(ready_for_completion["ready"], False)
-    self.assertEqual(ready_for_completion["invalid_attributes"],
-                     [{"id": ca.definition.id, "errors": ["value"]}])
+    self.assertEqual(preconditions_failed,
+                     {ca.definition.id: ["value"]})
 
-  def test_ready_for_completion_with_mandatory_filled_global_ca(self):
-    """Ready for completion if global mandatory CA is filled."""
+  def test_preconditions_failed_with_mandatory_filled_global_ca(self):
+    """No preconditions failed if global mandatory CA is filled."""
     CustomAttributeMock(self.assessment, mandatory=True, global_=True,
                         value="Foo")
     self.refresh(self.assessment)
 
-    ready_for_completion = self.assessment.ready_for_completion
+    preconditions_failed = self.assessment.preconditions_failed
 
-    self.assertEqual(ready_for_completion["ready"], True)
-    self.assertFalse(ready_for_completion.get("invalid_attributes"))
+    self.assertFalse(preconditions_failed)
 
-  def test_ready_for_completion_with_missing_mandatory_comment(self):
-    """Not ready for completion if comment required by CA is missing."""
+  def test_preconditions_failed_with_missing_mandatory_comment(self):
+    """Some preconditions failed if comment required by CA is missing."""
     ca = CustomAttributeMock(
         self.assessment,
         attribute_type="Dropdown",
@@ -247,14 +241,13 @@ class TestValidateOnComplete(TestCase):
     )
     self.refresh(self.assessment)
 
-    ready_for_completion = self.assessment.ready_for_completion
+    preconditions_failed = self.assessment.preconditions_failed
 
-    self.assertEqual(ready_for_completion["ready"], False)
-    self.assertEqual(ready_for_completion["invalid_attributes"],
-                     [{"id": ca.definition.id, "errors": ["comment"]}])
+    self.assertEqual(preconditions_failed,
+                     {ca.definition.id: ["comment"]})
 
-  def test_ready_for_completion_with_present_mandatory_comment(self):
-    """Ready for completion if comment required by CA is present."""
+  def test_preconditions_failed_with_present_mandatory_comment(self):
+    """No preconditions failed if comment required by CA is present."""
     ca = CustomAttributeMock(
         self.assessment,
         attribute_type="Dropdown",
@@ -274,7 +267,6 @@ class TestValidateOnComplete(TestCase):
     GENERATOR.generate_relationship(self.assessment, comment)
     self.refresh(self.assessment)
 
-    ready_for_completion = self.assessment.ready_for_completion
+    preconditions_failed = self.assessment.preconditions_failed
 
-    self.assertEqual(ready_for_completion["ready"], True)
-    self.assertFalse(ready_for_completion.get("invalid_attributes"))
+    self.assertFalse(preconditions_failed)

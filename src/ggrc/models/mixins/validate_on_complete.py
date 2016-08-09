@@ -20,7 +20,6 @@ from ggrc.models.comment import Comment
 from ggrc.models.computed_property import computed_property
 from ggrc.models.custom_attribute_definition import CustomAttributeDefinition
 from ggrc.models.exceptions import ValidationError
-from ggrc.models.reflection import PublishOnly
 
 
 class RequirementError(namedtuple("RequirementError", ["cad", "cav",
@@ -46,37 +45,27 @@ class ValidateOnComplete(object):
 
   # pylint: disable=too-few-public-methods
 
-  # REST properties
-  _publish_attrs = [
-      PublishOnly("ready_for_completion"),
-  ]
-
   @computed_property
-  def ready_for_completion(self):
-    """Check that self is ready to move to "Complete".
+  def preconditions_failed(self):
+    """Find failed preconditions that block self from moving to "Complete".
 
     Returns:
-      {"ready": bool, - True if self can be completed, False otherwise
-       "invalid_attributes": [{ - lists every CA which blocks completion
-            "id": cad.id, - id of a CA which blocks completion
-            "errors": [str], - reasons why this CA blocks completion
-       }]}
+      {
+         cad.id: [str], - mapping from id of a CA which blocks completion
+                          to reasons why this CA blocks completion
+      }
       Possible errors are "value" (missing mandatory CA value), "comment"
         (missing mandatory comment), "evidence" (missing mandatory evidence).
     """
-    def get_invalid_attributes(errors):
-      """Transform error list to cad.id -> relevant error list dict."""
-      invalid_attributes = defaultdict(lambda: defaultdict(list))
+    def get_failed_preconditions(errors):
+      """Transform error list to cad.id -> relevant error dict."""
+      preconditions_failed = defaultdict(list)
       for error in errors:
-        invalid_attributes[error.cad]["errors"].append(error.requirement)
-      return [{"id": cad.id, "errors": val["errors"]}
-              for cad, val in invalid_attributes.iteritems()]
+        preconditions_failed[error.cad.id].append(error.requirement)
+      return preconditions_failed
 
     errors = self._get_unsatisfied_requirements()
-    return {
-        "ready": not errors,
-        "invalid_attributes": get_invalid_attributes(errors),
-    }
+    return get_failed_preconditions(errors)
 
   @declared_attr
   def _related_comments(self):

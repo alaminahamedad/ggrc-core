@@ -645,7 +645,12 @@ class Builder(AttributeInfo):
   def publish_attr(
           self, obj, attr_name, inclusions, include, inclusion_filter):
     class_attr = getattr(obj.__class__, attr_name)
-    if isinstance(class_attr, AssociationProxy):
+    publish_raw = attr_name in getattr(obj.__class__, "_publish_raw", [])
+    if publish_raw:
+      # The attribute provides a raw value that requires no special processing.
+      # This is used for special mapings such as custom attribute values.
+      return getattr(obj, attr_name)
+    elif isinstance(class_attr, AssociationProxy):
       if getattr(class_attr, 'publish_raw', False):
         published_attr = getattr(obj, attr_name)
         if hasattr(published_attr, "copy"):
