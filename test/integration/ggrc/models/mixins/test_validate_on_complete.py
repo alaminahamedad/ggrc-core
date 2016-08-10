@@ -3,12 +3,11 @@
 
 """Integration tests for ValidateOnComplete mixin"""
 
-from ggrc import db
 from ggrc.models.assessment import Assessment
 from ggrc.models.exceptions import ValidationError
 from integration.ggrc import generator
 from integration.ggrc import TestCase
-
+from integration.ggrc.models import factories
 
 GENERATOR = generator.ObjectGenerator()
 
@@ -31,7 +30,7 @@ class CustomAttributeMock(object):
 
   def make_definition(self):
     """Generate a custom attribute definition."""
-    _, definition = GENERATOR.generate_custom_attribute(
+    definition = factories.CustomAttributeDefinitionFactory(
         attribute_type=self.attribute_type,
         definition_type=self.attributable.__class__.__name__,
         definition_id=None if self.global_ else self.attributable.id,
@@ -46,9 +45,10 @@ class CustomAttributeMock(object):
   def make_value(self):
     """Generate a custom attribute value."""
     if self.attribute_value is not None:
-      _, value = GENERATOR.generate_custom_attribute_value(
+      value = factories.CustomAttributeValueFactory(
           custom_attribute_id=self.definition.id,
-          attributable=self.attributable,
+          attributable_type=self.attributable.__class__.__name__,
+          attributable_id=self.attributable.id,
           attribute_value=self.attribute_value,
       )
     else:
@@ -61,25 +61,11 @@ class TestValidateOnComplete(TestCase):
 
   # pylint: disable=invalid-name
 
-  @staticmethod
-  def create_assessment():
-    """Generate an assessment with mapped custom attributes."""
-    _, assessment = GENERATOR.generate_object(
-        Assessment,
-        data={
-            "status": Assessment.PROGRESS_STATE,
-        },
-    )
-    return assessment
-
-  @staticmethod
-  def refresh(obj):
-    db.session.add(obj)
-    db.session.refresh(obj)
-
   def setUp(self):
     super(TestValidateOnComplete, self).setUp()
-    self.assessment = self.create_assessment()
+    self.assessment = factories.AssessmentFactory(
+        status=Assessment.PROGRESS_STATE,
+    )
 
   def test_validates_with_no_ca(self):
     """Validation ok with no CA restrictions."""
@@ -91,7 +77,6 @@ class TestValidateOnComplete(TestCase):
     """Validation ok with no CA-introduced restrictions."""
     CustomAttributeMock(self.assessment, attribute_type="Text")
     CustomAttributeMock(self.assessment, attribute_type="Checkbox")
-    self.refresh(self.assessment)
 
     self.assessment.status = self.assessment.FINAL_STATE
 
@@ -100,7 +85,6 @@ class TestValidateOnComplete(TestCase):
   def test_validates_with_mandatory_empty_ca(self):
     """Validation fails if mandatory CA is empty."""
     CustomAttributeMock(self.assessment, mandatory=True)
-    self.refresh(self.assessment)
 
     with self.assertRaises(ValidationError):
       self.assessment.status = self.assessment.FINAL_STATE
@@ -110,7 +94,6 @@ class TestValidateOnComplete(TestCase):
   def test_validates_with_mandatory_filled_ca(self):
     """Validation ok if mandatory CA is filled."""
     CustomAttributeMock(self.assessment, mandatory=True, value="Foo")
-    self.refresh(self.assessment)
 
     self.assessment.status = self.assessment.FINAL_STATE
 
@@ -119,7 +102,6 @@ class TestValidateOnComplete(TestCase):
   def test_validates_with_mandatory_empty_global_ca(self):
     """Validation fails if global mandatory CA is empty."""
     CustomAttributeMock(self.assessment, mandatory=True, global_=True)
-    self.refresh(self.assessment)
 
     with self.assertRaises(ValidationError):
       self.assessment.status = self.assessment.FINAL_STATE
@@ -130,7 +112,6 @@ class TestValidateOnComplete(TestCase):
     """Validation ok if global mandatory CA is filled."""
     CustomAttributeMock(self.assessment, mandatory=True, global_=True,
                         value="Foo")
-    self.refresh(self.assessment)
 
     self.assessment.status = self.assessment.FINAL_STATE
 
@@ -144,7 +125,6 @@ class TestValidateOnComplete(TestCase):
         dropdown_parameters=("foo,comment_required", "0,1"),
         value="comment_required",
     )
-    self.refresh(self.assessment)
 
     with self.assertRaises(ValidationError):
       self.assessment.status = self.assessment.FINAL_STATE
@@ -157,20 +137,28 @@ class TestValidateOnComplete(TestCase):
         self.assessment,
         attribute_type="Dropdown",
         dropdown_parameters=("foo,comment_required", "0,1"),
-        value="comment_required",
+        value=None,  # the value is made with generator to store revision too
     )
-    _, comment = GENERATOR.generate_comment(
-        commentable=self.assessment,
+    _, ca.value = GENERATOR.generate_custom_attribute_value(
+        custom_attribute_id=ca.definition.id,
+        attributable=self.assessment,
+        attribute_value="comment_required",
+    )
+    comment = factories.CommentFactory(
         assignee_type="Assessor",
         description="Mandatory comment",
-        custom_attribute_revision_upd={
+    )
+    comment.custom_attribute_revision_upd({
+        "custom_attribute_revision_upd": {
             "custom_attribute_value": {
                 "id": ca.value.id,
             },
         },
+    })
+    factories.RelationshipFactory(
+        source=self.assessment,
+        destination=comment,
     )
-    GENERATOR.generate_relationship(self.assessment, comment)
-    self.refresh(self.assessment)
 
     self.assessment.status = self.assessment.FINAL_STATE
 

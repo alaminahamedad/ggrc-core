@@ -3,10 +3,12 @@
 
 """Integration tests for "preconditions_failed" CAV and CAable fields logic."""
 
-from ggrc import db
 from ggrc.models.assessment import Assessment
 from integration.ggrc import TestCase
+from integration.ggrc import generator
 from integration.ggrc.models import factories
+
+GENERATOR = generator.ObjectGenerator()
 
 
 # pylint: disable=too-many-instance-attributes
@@ -15,7 +17,7 @@ class CustomAttributeMock(object):
 
   # pylint: disable=too-many-arguments
   def __init__(self, attributable, attribute_type="Text", mandatory=False,
-               dropdown_parameters=None, global_=False, value=""):
+               dropdown_parameters=None, global_=False, value=None):
     self.attributable = attributable
     self.attribute_type = attribute_type
     self.mandatory = mandatory
@@ -44,7 +46,8 @@ class CustomAttributeMock(object):
     if self.attribute_value is not None:
       value = factories.CustomAttributeValueFactory(
           custom_attribute_id=self.definition.id,
-          attributable=self.attributable,
+          attributable_type=self.attributable.__class__.__name__,
+          attributable_id=self.attributable.id,
           attribute_value=self.attribute_value,
       )
     else:
@@ -71,8 +74,10 @@ class TestPreconditionsFailed(TestCase):
 
   def test_preconditions_failed_with_no_mandatory_ca(self):
     """No preconditions failed with no CA-introduced restrictions."""
-    ca_text = CustomAttributeMock(self.assessment, attribute_type="Text")
-    ca_cbox = CustomAttributeMock(self.assessment, attribute_type="Checkbox")
+    ca_text = CustomAttributeMock(self.assessment, attribute_type="Text",
+                                  value="")
+    ca_cbox = CustomAttributeMock(self.assessment, attribute_type="Checkbox",
+                                  value="")
 
     preconditions_failed = self.assessment.preconditions_failed
 
@@ -82,7 +87,7 @@ class TestPreconditionsFailed(TestCase):
 
   def test_preconditions_failed_with_mandatory_empty_ca(self):
     """Some preconditions failed if mandatory CA is empty."""
-    ca = CustomAttributeMock(self.assessment, mandatory=True)
+    ca = CustomAttributeMock(self.assessment, mandatory=True, value="")
 
     preconditions_failed = self.assessment.preconditions_failed
 
@@ -101,7 +106,8 @@ class TestPreconditionsFailed(TestCase):
 
   def test_preconditions_failed_with_mandatory_empty_global_ca(self):
     """Some preconditions failed if global mandatory CA is empty."""
-    ca = CustomAttributeMock(self.assessment, mandatory=True, global_=True)
+    ca = CustomAttributeMock(self.assessment, mandatory=True, global_=True,
+                             value="")
 
     preconditions_failed = self.assessment.preconditions_failed
 
@@ -138,17 +144,24 @@ class TestPreconditionsFailed(TestCase):
         self.assessment,
         attribute_type="Dropdown",
         dropdown_parameters=("foo,comment_required", "0,1"),
-        value="comment_required",
+        value=None,  # the value is made with generator to store revision too
+    )
+    _, ca.value = GENERATOR.generate_custom_attribute_value(
+        custom_attribute_id=ca.definition.id,
+        attributable=self.assessment,
+        attribute_value="comment_required",
     )
     comment = factories.CommentFactory(
         assignee_type="Assessor",
         description="Mandatory comment",
-        custom_attribute_revision_upd={
+    )
+    comment.custom_attribute_revision_upd({
+        "custom_attribute_revision_upd": {
             "custom_attribute_value": {
                 "id": ca.value.id,
             },
         },
-    )
+    })
     factories.RelationshipFactory(
         source=self.assessment,
         destination=comment,
