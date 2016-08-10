@@ -192,3 +192,9 @@ class PersonFactory(ModelFactory):
 
   class Meta:
     model = models.Person
+
+
+class CommentFactory(ModelFactory):
+
+  class Meta:
+    model = models.Comment
