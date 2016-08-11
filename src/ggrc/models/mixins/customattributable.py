@@ -360,7 +360,7 @@ class CustomAttributable(object):
     if hasattr(cls, 'comments'):
       # only for Commentable classess
       query = query.options(
-        orm.subqueryload('comments'),
+          orm.subqueryload('comments'),
       )
     return query
 
