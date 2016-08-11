@@ -272,12 +272,16 @@ class CustomAttributeValue(Base, db.Model):
 
   def _check_mandatory_comment(self):
     """Check presence of mandatory comment."""
-    comment_found = any(
-        self.custom_attribute_id == comment.custom_attribute_definition_id and
-        self.id == comment.revision.resource_id and
-        self.__class__.__name__ == comment.revision.resource_type
-        for comment in self.attributable.comments
-    )
+    if hasattr(self.attributable, "comments"):
+      comment_found = any(
+          self.custom_attribute_id == (comment
+                                       .custom_attribute_definition_id) and
+          self.id == comment.revision.resource_id and
+          self.__class__.__name__ == comment.revision.resource_type
+          for comment in self.attributable.comments
+      )
+    else:
+      comment_found = False
     if not comment_found:
       return ["comment"]
     else:
