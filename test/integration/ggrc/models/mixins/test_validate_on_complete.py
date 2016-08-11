@@ -9,6 +9,7 @@ from integration.ggrc import TestCase
 from integration.ggrc.models import factories
 
 
+# pylint: disable=super-on-old-class; TestCase is a new-style class
 class TestValidateOnComplete(TestCase):
   """Integration tests suite for ValidateOnComplete mixin"""
 

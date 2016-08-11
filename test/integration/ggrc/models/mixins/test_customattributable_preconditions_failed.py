@@ -55,6 +55,7 @@ class CustomAttributeMock(object):
     return value
 
 
+# pylint: disable=super-on-old-class; TestCase is a new-style class
 class TestPreconditionsFailed(TestCase):
   """Integration tests suite for preconditions_failed fields logic."""
 

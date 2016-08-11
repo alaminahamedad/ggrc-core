@@ -238,6 +238,14 @@ class CustomAttributeValue(Base, db.Model):
 
   @computed_property
   def preconditions_failed(self):
+    """A list of requirements self introduces that are unsatisfied.
+
+    Returns:
+      [str] - a list of unsatisfied requirements; possible items are: "value" -
+              missing mandatory value, "comment" - missing mandatory comment,
+              "evidence" - missing mandatory evidence.
+
+    """
     from ggrc.models.custom_attribute_definition import (
         CustomAttributeDefinition)
     failed_preconditions = []
@@ -249,6 +257,7 @@ class CustomAttributeValue(Base, db.Model):
     return failed_preconditions
 
   def _check_dropdown_requirements(self):
+    """Check mandatory comment and mandatory evidence for dropdown CAV."""
     failed_preconditions = []
     options_to_flags = self._multi_choice_options_to_flags(
         self.custom_attribute,
@@ -262,6 +271,7 @@ class CustomAttributeValue(Base, db.Model):
     return failed_preconditions
 
   def _check_mandatory_comment(self):
+    """Check presence of mandatory comment."""
     comment_found = any(
         self.custom_attribute_id == comment.custom_attribute_definition_id and
         self.id == comment.revision.resource_id and
@@ -274,6 +284,7 @@ class CustomAttributeValue(Base, db.Model):
       return []
 
   def _check_mandatory_evidence(self):
+    """Check presence of mandatory evidence."""
     # pylint: disable=no-self-use
     # not implemented yet
     return []
