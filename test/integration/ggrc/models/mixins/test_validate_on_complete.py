@@ -39,7 +39,7 @@ class TestValidateOnComplete(TestCase):
 
   def test_validates_with_mandatory_empty_ca(self):
     """Validation fails if mandatory CA is empty."""
-    self.make_custom_attribute_definition(mandatory=False)
+    self.make_custom_attribute_definition(mandatory=True)
 
     with self.assertRaises(ValidationError):
       self.assessment.status = self.assessment.FINAL_STATE
