@@ -11,6 +11,7 @@ from sqlalchemy import and_
 from sqlalchemy import not_
 from sqlalchemy import or_
 
+from ggrc import db
 from ggrc.rbac import permissions
 from ggrc.models.custom_attribute_value import CustomAttributeValue
 from ggrc.models.custom_attribute_definition import \
@@ -251,7 +252,7 @@ class QueryHelper(object):
       return set()
     object_class = self.object_map[object_name]
 
-    query = object_class.query
+    query = object_class.eager_query()
     filter_expression = self._build_expression(
         expression,
         object_class,
@@ -340,6 +341,18 @@ class QueryHelper(object):
           )
       )
 
+    def similar():
+      """Filter by relationships similarity."""
+      similar_class = self.object_map[exp["object_name"]]
+      if not hasattr(similar_class, "get_similar_objects"):
+        return BadQueryException("{} does not define weights to count "
+                                 "relationships similarity"
+                                 .format(similar_class.__name__))
+      return object_class.id.in_(
+          [r[0] for r in similar_class
+           .get_similar_objects(id_=exp["id"], types=[object_class.__name__])]
+      )
+
     def unknown():
       raise BadQueryException("Unknown operator \"{}\""
                               .format(exp["op"]["name"]))
@@ -394,7 +407,8 @@ class QueryHelper(object):
         "<": lambda: with_left(lambda l: l < rhs()),
         ">": lambda: with_left(lambda l: l > rhs()),
         "relevant": relevant,
-        "text_search": text_search
+        "text_search": text_search,
+        "similar": similar,
     }
 
     return ops.get(exp["op"]["name"], unknown)()

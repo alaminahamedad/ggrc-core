@@ -20,6 +20,7 @@ from ggrc.models.mixins import statusable
 from ggrc.models.mixins.assignable import Assignable
 from ggrc.models.mixins.autostatuschangeable import AutoStatusChangeable
 from ggrc.models.mixins.validate_on_complete import ValidateOnComplete
+from ggrc.models.mixins.can_find_similar import CanFindSimilar
 from ggrc.models.deferred import deferred
 from ggrc.models.object_document import Documentable
 from ggrc.models.object_person import Personable
@@ -65,9 +66,9 @@ class AuditRelationship(object):
 class Assessment(statusable.Statusable, AuditRelationship,
                  AutoStatusChangeable, Assignable, HasObjectState, TestPlanned,
                  CustomAttributable, Documentable, Commentable, Personable,
-                 reminderable.Reminderable, Timeboxed,
-                 Relatable, FinishedDate, VerifiedDate, ValidateOnComplete,
-                 BusinessObject, db.Model):
+                 reminderable.Reminderable, Timeboxed, Relatable,
+                 CanFindSimilar, FinishedDate, VerifiedDate,
+                 ValidateOnComplete, BusinessObject, db.Model):
   """Class representing Assessment.
 
   Assessment is an object representing an individual assessment performed on
@@ -166,6 +167,15 @@ class Assessment(statusable.Statusable, AuditRelationship,
           "filter_by": "_filter_by_related_verifiers",
           "type": reflection.AttributeInfo.Type.MAPPING,
       },
+  }
+
+  relatable_options = {
+      "relevant_types": {
+          "Audit": {"weight": 5},
+          "Regulation": {"weight": 3},
+          "Control": {"weight": 10},
+      },
+      "threshold": 5,
   }
 
   def validate_conclusion(self, value):

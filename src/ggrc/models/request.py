@@ -20,6 +20,7 @@ from ggrc.models.mixins import Slugged
 from ggrc.models.mixins import Titled
 from ggrc.models.mixins import VerifiedDate
 from ggrc.models.mixins import statusable
+from ggrc.models.mixins.can_find_similar import CanFindSimilar
 from ggrc.models.mixins.autostatuschangeable import AutoStatusChangeable
 from ggrc.models.deferred import deferred
 from ggrc.models.mixins.assignable import Assignable
@@ -27,9 +28,9 @@ from ggrc.models.object_document import Documentable
 from ggrc.models.object_person import Personable
 
 
-class Request(statusable.Statusable,
-              AutoStatusChangeable, Assignable, Documentable, Personable,
-              CustomAttributable, relationship.Relatable, Titled, Slugged,
+class Request(statusable.Statusable, AutoStatusChangeable, Assignable,
+              Documentable, Personable, CustomAttributable,
+              relationship.Relatable, CanFindSimilar, Titled, Slugged,
               Described, Commentable, FinishedDate, VerifiedDate, Base,
               db.Model):
   """Class representing Requests.
@@ -45,6 +46,15 @@ class Request(statusable.Statusable,
   VALID_TYPES = (u'documentation', u'interview')
 
   ASSIGNEE_TYPES = (u'Assignee', u'Requester', u'Verifier')
+
+  relatable_options = {
+      "relevant_types": {
+          "Audit": {"weight": 5},
+          "Regulation": {"weight": 3},
+          "Control": {"weight": 10},
+      },
+      "threshold": 5,
+  }
 
   # TODO Remove requestor and requestor_id on database cleanup
   requestor_id = db.Column(db.Integer, db.ForeignKey('people.id'))
